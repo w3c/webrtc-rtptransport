@@ -1,0 +1,396 @@
+<pre class='metadata'>
+Title: WebRTC RTP Transport
+Shortname: webrtc-rtptransport
+Level: None
+Status: ED
+Group: webrtc
+TR: https://www.w3.org/TR/webrtc-rtptransport/
+Repository: w3c/webrtc-rtptransport
+URL: https://github.com/w3c/webrtc-rtptransport
+Editor: Peter Thatcher, w3cid 68236, Microsoft Corporation https://www.microsoft.com, pthatcher@microsoft.com
+Editor: Bernard Aboba, w3cid 65611, Microsoft Corporation https://www.microsoft.com, bernarda@microsoft.com
+
+Abstract: The WebRTC-RtpTransport API allows web applications to send and receive packets
+Abstract: using the RTP/RTCP protocol defined in [[RFC3550]].
+Complain About:accidental-2119 yes
+Markup Shorthands: css no, markdown yes, dfn yes
+!Participate: <a href="https://github.com/w3c/webrtc-rtptransport">Git Repository.</a>
+!Participate: <a href="https://github.com/w3c/webrtc-rtptransport/issues/new">File an issue.</a>
+!Version History: <a href="https://github.com/w3c/webrtc-rtptransport/commits">https://github.com/w3c/webrtc-rtptransport/commits</a>
+</pre>
+<pre class=link-defaults>
+spec:webidl; type:dfn; text:resolve
+</pre>
+<pre class=biblio>
+{
+  "WEBCODECS": {
+     "title": "WebCodecs",
+     "href": "https://www.w3.org/TR/webcodecs/",
+     "status": "None",
+     "publisher": "IETF"
+   },
+    "RFC3550": {
+      "title": "RTP: A Transport Protocol for Real-Time Applications",
+      "href": "https://datatracker.ietf.org/doc/html/rfc3550",
+      "authors": [
+        "H. Schulzrinne",
+        "S. Casner",
+        "R. Frederick",
+        "V. Jacobson"
+      ],
+      "status": "July 2003. RFC",
+      "publisher": "IETF"
+    },
+    "RFC3551": {
+      "title": "RTP Profile for Audio and Video Conferences with Minimal Control",
+      "href": "https://datatracker.ietf.org/doc/html/rfc3551",
+      "authors": [
+        "H. Schulzrinne",
+        "S. Casner"
+      ],
+      "status": "July 2003. RFC",
+      "publisher": "IETF"
+    },
+    "RFC3711": {
+      "title": "The Secure Real-time Transport Protocol (SRTP)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc3711",
+      "authors": [
+        "M. Baugher",
+        "D. McGrew",
+        "M. Naslund",
+        "E. Carrara",
+        "K. Norrman"
+      ],
+      "status": "March 2004. RFC",
+      "publisher": "IETF"
+    },
+    "RFC3890": {
+      "title": "A Transport Independent Bandwidth Modifier for the Session Description Protocol (SDP)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc3890",
+      "authors": [
+        "M. Westerlund"
+      ],
+      "status": "September 2004. RFC",
+      "publisher": "IETF"
+    },
+    "RFC4103": {
+      "title": "RTP Payload for Text Conversation",
+      "href": "https://datatracker.ietf.org/doc/html/rfc4103",
+      "authors": [
+        "G. Hellstrom",
+        "P. Jones"
+      ],
+      "status": "June 2005. RFC",
+      "publisher": "IETF"
+    },
+    "RFC4585": {
+      "title": "Extended RTP Profile for RTCP-Based Feedback (RTP/AVPF)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc4585",
+      "authors": [
+        "J. Ott",
+        "S. Wenger",
+        "N. Sato",
+        "C. Burmeister",
+        "J. Rey"
+      ],
+      "status": "July 2006. RFC",
+      "publisher": "IETF"
+    },
+   "RFC4961": {
+      "title": "Symmetric RTP/RTC Control Protocol (RTCP)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc4961",
+      "authors": [
+        "D. Wing"
+      ],
+      "status": "July 2007. RFC",
+      "publisher": "IETF"
+    },
+    "RFC5104": {
+      "title": "Codec Control Messages in the RTP Audio-Visual Profile with Feedback (AVPF)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc5104",
+      "authors": [
+        "S. Wenger",
+        "U. Chandra",
+        "M. Westerlund",
+        "B. Burman"
+      ],
+      "status": "February 2008. RFC",
+      "publisher": "IETF"
+    },
+    "RFC5124": {
+      "title": "Extended Secure RTP Profile for Real-time Transport Control Protocol (RTCP)-Based Feedback (RTP/SAVPF)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc5124",
+      "authors": [
+        "J. Ott",
+        "E. Carrara"
+      ],
+      "status": "February 2008. RFC",
+      "publisher": "IETF"
+    },
+    "RFC5450": {
+      "title": "Transmission Time Offsets in RTP Streams",
+      "href": "https://datatracker.ietf.org/doc/html/rfc5450",
+      "authors": [
+        "D. Singer",
+        "H. Desineni"
+      ],
+      "status": "March 2009. RFC",
+      "publisher": "IETF"
+    },
+    "RFC5506": {
+      "title": "Support for Reduced-Size Real-Time Transport Control Protocol (RTCP): Opportunities and Consequences",
+      "href": "https://datatracker.ietf.org/doc/html/rfc5506",
+      "authors": [
+        "I. Johansson",
+        "M. Westerlund"
+      ],
+      "status": "April 2009. RFC",
+      "publisher": "IETF"
+    },
+    "RFC5761": {
+      "title": "Multiplexing RTP Data and Control Packets on a Single Port",
+      "href": "https://datatracker.ietf.org/doc/html/rfc5761",
+      "authors": [
+        "C. Perkins",
+        "M. Westerlund"
+      ],
+      "status": "April 2010. RFC",
+      "publisher": "IETF"
+    },
+    "RFC6051": {
+      "title": "Rapid Synchronisation of RTP Flows",
+      "href": "https://datatracker.ietf.org/doc/html/rfc6051",
+      "authors": [
+        "C. Perkins",
+        "T. Schierl"
+      ],
+      "status": "November 2010. RFC",
+      "publisher": "IETF"
+    },
+    "RFC6263": {
+      "title": "Application Mechanism for Keeping Alive the NAT Mappings Associated with RTP / RTP Control Protocol (RTCP) Flows",
+      "href": "https://datatracker.ietf.org/doc/html/rfc6263",
+      "authors": [
+        "X. Marjou",
+        "A. Sollaud"
+      ],
+      "status": "June 2011. RFC",
+      "publisher": "IETF"
+    },
+    "RFC6464": {
+      "title": "A Real-time Transport Protocol (RTP) Header Extension for Client-to-Mixer Audio Level Indication",
+      "href": "https://datatracker.ietf.org/doc/html/rfc6464",
+      "authors": [
+        "J. Lennox, Ed.",
+        "E. Ivov",
+        "E. Marocco"
+      ],
+      "status": "December 2011. RFC",
+      "publisher": "IETF"
+    },
+    "RFC6465": {
+      "title": "A Real-time Protocol (RTP) Header Extension for Mixer-to-Client Audio Level Indication",
+      "href": "https://datatracker.ietf.org/doc/html/rfc6465",
+      "authors": [
+        "E. Ivov",
+        "E. Marocco",
+        "J. Lennox"
+      ],
+      "status": "December 2011. RFC",
+      "publisher": "IETF"
+    },
+    "RFC6904": {
+      "title": "Encryption of Header Extensions in the SRTP",
+      "href": "https://datatracker.ietf.org/doc/html/rfc6904",
+      "authors": [
+        "J. Lennox"
+      ],
+      "status": "April 2013. RFC",
+      "publisher": "IETF"
+    },
+    "RFC7022": {
+      "title": "Guidelines for Choosing RTP Control Protocol (RTCP) Canonical Names (CNAMEs)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc7022",
+      "authors": [
+        "A. Begen",
+        "C. Perkins",
+        "D. Wing",
+        "E. Rescorla"
+      ],
+      "status": "September 2013. RFC",
+      "publisher": "IETF"
+    },
+    "RFC7160": {
+      "title": "Support for Multiple Clock Rates in an RTP Session",
+      "href": "https://datatracker.ietf.org/doc/html/rfc7160",
+      "authors": [
+        "M. Petit-Huguenin",
+        "G. Zorn"
+      ],
+      "status": "April 2014. RFC",
+      "publisher": "IETF"
+    },
+    "RFC7656": {
+      "title": "A Taxonomy of Semantics and Mechanisms for Real-Time Transport Protocol (RTP) Sources",
+      "href": "https://datatracker.ietf.org/doc/html/rfc7656",
+      "authors": [
+        "J. Lennox",
+        "K. Gross",
+        "S. Nandakumar",
+        "G. Salgueiro",
+        "B. Burman"
+      ],
+      "status": "November 2015. RFC",
+      "publisher": "IETF"
+    },
+    "RFC8082": {
+      "title": "Using Codec Control Messages in the RTP Audio-Visual Profile with Feedback with Layered Codecs",
+      "href": "https://datatracker.ietf.org/doc/html/rfc8082",
+      "authors": [
+        "S. Wenger",
+        "J. Lennox",
+        "B. Burman"
+      ],
+      "status": "March 2017. RFC",
+      "publisher": "IETF"
+    },
+    "RFC8108": {
+      "title": "Sending Multiple RTP Streams in a Single RTP Session",
+      "href": "https://datatracker.ietf.org/doc/html/rfc8108",
+      "authors": [
+        "J. Lennox",
+        "M. Westerlund",
+        "Q. Wu",
+        "C. Perkins"
+      ],
+      "status": "March 2017. RFC",
+      "publisher": "IETF"
+    },
+    "RFC8285": {
+      "title": "A General Mechanism for RTP Header Extensions",
+      "href": "https://datatracker.ietf.org/doc/html/rfc8285",
+      "authors": [
+        "D. Singer",
+        "H. Desineni",
+        "R. Even"
+      ],
+      "status": "October 2017. RFC",
+      "publisher": "IETF"
+    },
+    "RFC8627": {
+      "title": "RTP Payload Format for Flexible Forward Error Correction (FEC)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc8627",
+      "authors": [
+        "M. Zanaty",
+        "V. Singh",
+        "A. Begen",
+        "G. Mandyam"
+      ],
+      "status": "July 2019. RFC",
+      "publisher": "IETF"
+    },
+    "RFC8834": {
+      "title": "Media Transport and Use of RTP in WebRTC",
+      "href": "https://datatracker.ietf.org/doc/html/rfc8834",
+      "authors": [
+        "C. Perkins",
+        "M. Westerlund",
+        "J. Ott"
+      ],
+      "status": "January 2021. RFC",
+      "publisher": "IETF"
+    },
+    "RFC8852": {
+      "title": "RTP Stream Identifier Source Description (SDES)",
+      "href": "https://datatracker.ietf.org/doc/html/rfc8852",
+      "authors": [
+        "A. Roach",
+        "S. Nandakumar",
+        "P. Thatcher"
+      ],
+      "status": "January 2021. RFC",
+      "publisher": "IETF"
+    },
+    "RFC8861": {
+      "title": "Sending Multiple RTP Streams in a Single RTP Session: Grouping RTP Control Protocol (RTCP) Reception Statistics and Other Feedback",
+      "href": "https://datatracker.ietf.org/doc/html/rfc8861",
+      "authors": [
+        "J. Lennox",
+        "M. Westerlund",
+        "Q. Wu",
+        "C. Perkins"
+      ],
+      "status": "January 2021. RFC",
+      "publisher": "IETF"
+    },
+    "RFC9335": {
+      "title": "Completely Encrypting RTP Header Extensions and Contributing Sources",
+      "href": "https://datatracker.ietf.org/doc/html/rfc9335",
+      "authors": [
+        "J. Uberti",
+        "C. Jennings",
+        "G. Murillo"
+      ],
+      "status": "January 2023. RFC",
+      "publisher": "IETF"
+    },
+    "RFC9443": {
+      "title": "Multiplexing Scheme Updates for QUIC",
+      "href": "https://datatracker.ietf.org/doc/html/rfc9443",
+      "authors": [
+        "B. Aboba",
+        "G. Salgueiro",
+        "C. Perkins"
+      ],
+      "status": "July 2023. RFC",
+      "publisher": "IETF"
+    }
+}
+</pre>
+<style>
+main > dl > dd {
+  margin-bottom: 1em;
+}
+
+table {
+  width: 100%;
+}
+
+table#sample-types td, table#sample-types th {
+  text-align: center;
+}
+
+table#sample-types .even {
+    background-color: lightgrey;
+}
+
+.rfc2119 {
+  text-transform: lowercase;
+  font-variant: small-caps;
+  font-style: normal;
+}
+
+</style>
+<pre class=link-defaults>
+spec:streams; type:interface; text:ReadableStream
+</pre>
+
+# Introduction # {#introduction}
+
+Introduction goes here.
+
+# Terminology # {#terminology}
+
+Terminology definitions go here.
+
+# Specification # {#specification}
+
+Specifications go here.
+
+# Privacy and security considerations # {#privacy}
+
+Blah Blah Blah
+
+# Examples # {#examples}
+
+See the [explainer document](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer.md#code-examples).
