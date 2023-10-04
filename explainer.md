@@ -37,7 +37,7 @@ send and receive RTP and RTCP packets.
 
 ## Goals
 
-RtpTransport enables web applications to support: 
+The WebRTC-RtpTransport API enables web applications to support: 
 
 - Custom payloads (ML-based audio codecs)
 - Custom packetization
@@ -57,14 +57,14 @@ encrypted and congestion-controlled communication.
 
 ## Key use-cases
 
-RtpTransport can be used to implement the following WebRTC Extended Use Cases: 
+WebRTC-RtpTransport can be used to implement the following WebRTC Extended Use Cases: 
 
 - [Section 2.3](https://www.w3.org/TR/webrtc-nv-use-cases/#videoconferencing*): Video Conferencing with a Central Server
 - [Section 3.2.1](https://www.w3.org/TR/webrtc-nv-use-cases/#game-streaming): Game streaming
 - [Section 3.2.2](https://www.w3.org/TR/webrtc-nv-use-cases/#auction): Low latency Broadcast with Fanout
 - [Section 3.5](https://www.w3.org/TR/webrtc-nv-use-cases/#vr*): Virtual Reality Gaming
 
-RtpTransport enables these use cases by enabling applications to:
+WebRTC-RtpTransport enables these use cases by enabling applications to:
 
 - Encode with a custom (WASM) codec, packetize and send
 - Obtain frames from Encoded Transform API, packetize and send
