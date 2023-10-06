@@ -1,17 +1,20 @@
-<pre class='metadata'>
+<pre class="metadata">
 Title: WebRTC RTP Transport
 Shortname: webrtc-rtptransport
 Level: None
-Status: ED
+Status: w3c/ED
 Group: webrtc
+ED: https://w3c.github.io/webrtc-rtptransport/
 TR: https://www.w3.org/TR/webrtc-rtptransport/
 Repository: w3c/webrtc-rtptransport
 URL: https://github.com/w3c/webrtc-rtptransport
 Editor: Peter Thatcher, w3cid 68236, Microsoft Corporation https://www.microsoft.com, pthatcher@microsoft.com
 Editor: Bernard Aboba, w3cid 65611, Microsoft Corporation https://www.microsoft.com, bernarda@microsoft.com
 
-Abstract: The WebRTC-RtpTransport API allows web applications to send and receive packets
-Abstract: using the RTP/RTCP protocol defined in [[RFC3550]].
+Abstract: 
+  The WebRTC-RtpTransport API allows web applications to send and receive RTP/RTCP packets
+  using the protocol defined in [[!RFC3550]].
+Boilerplate: omit conformance
 Complain About:accidental-2119 yes
 Markup Shorthands: css no, markdown yes, dfn yes
 !Participate: <a href="https://github.com/w3c/webrtc-rtptransport">Git Repository.</a>
@@ -377,20 +380,64 @@ spec:streams; type:interface; text:ReadableStream
 
 # Introduction # {#introduction}
 
-Introduction goes here.
+*This section is non-normative.*
+
+This specification uses [[!RFC3550]] to send and receive RTP and RTCP packets.
+
+Note: The API presented in this specification represents a preliminary proposal
+based on work-in-progress within the W3C WEBRTC WG. As a result, the API is likely
+to change significantly going forward. 
+
+# Conformance #  {#conformance}
+
+As well as sections marked as non-normative, all authoring guidelines,
+diagrams, examples, and notes in this specification are non-normative.
+Everything else in this specification is normative.
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
+ "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" are to be interpreted as described in 
+[[!RFC2119]] and [[!RFC8174]] when, and only when, they appear in all capitals, as shown here.
+
+This specification defines conformance criteria that apply to a single product:
+the user agent that implements the interfaces that it contains.
+
+Conformance requirements phrased as algorithms or specific steps may be
+implemented in any manner, so long as the end result is equivalent. (In
+particular, the algorithms defined in this specification are intended to be
+easy to follow, and not intended to be performant.)
+
+Implementations that use ECMAScript to implement the APIs defined in this
+specification MUST implement them in a manner consistent with the ECMAScript
+Bindings defined in the Web IDL specification [[!WEBIDL]], as this
+specification uses that specification and terminology.
 
 # Terminology # {#terminology}
 
 Terminology definitions go here.
 
-# Specification # {#specification}
+# RTCRtpTransport Interface # {#rtptransport}
 
-Specifications go here.
+## Internal slots ## {#internal-slots}
+
+## Constructor ## {#constructor}
+
+## Attributes ## {#attributes}
+
+## Methods ## {#methods}
 
 # Privacy and security considerations # {#privacy}
 
-Blah Blah Blah
+## Confidentiality of Communications ## {#confidentiality}
+
+## State Persistence ## {#state-persistence}
+
+## Protocol Security ## {#protocol-security}
+
+## Fingerprinting and Tracking ## {#fingerprinting}
 
 # Examples # {#examples}
 
 See the [explainer document](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer.md#code-examples).
+
+# Acknowledgements #  {#acknowledgements}
+The editors wish to thank the WEBRTC Working Group chairs and Team Contact for their support.
