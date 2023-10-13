@@ -2,7 +2,7 @@
 Title: WebRTC RTP Transport
 Shortname: webrtc-rtptransport
 Level: None
-Status: w3c/ED
+Status: UD
 Group: webrtc
 ED: https://w3c.github.io/webrtc-rtptransport/
 TR: https://www.w3.org/TR/webrtc-rtptransport/
