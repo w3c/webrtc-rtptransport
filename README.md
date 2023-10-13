@@ -13,10 +13,11 @@ The WebRTC-RtpTransport API enables web applications to support:
 - Custom FEC
 - Custom RTX
 - Custom Jitter Buffer
-- Custom bandwidth estimation (BWE)
+- Custom rate control (with built-in bandwidth estimate)
 - Custom bitrate allocation
 - Custom metadata (header extensions)
 - Custom RTCP messages
+- Custom RTCP message timing
 - RTP Forwarding
 
 # Samples
