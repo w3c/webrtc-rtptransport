@@ -45,9 +45,11 @@ The WebRTC-RtpTransport API enables web applications to support:
 - Custom RTX
 - Custom Jitter Buffer 
 - Custom bandwidth estimate
+- Custom rate control (with built-in bandwidth estimate)
 - Custom bitrate allocation
 - Custom metadata (header extensions)
 - Custom RTCP messages
+- Custom RTCP message timing
 - RTP forwarding
 
 ## Non-goals
@@ -70,10 +72,11 @@ WebRTC-RtpTransport enables these use cases by enabling applications to:
 - Obtain frames from Encoded Transform API, packetize and send
 - Obtain frames from Encoded Transform API, apply custom FEC, and send
 - Observe incoming NACKs and resend with custom RTX behavior
+- Observe incoming packets and customize when NACKs are sent
 - Receive packets using a custom jitter buffer implementation
 - Use WebCodecs for encode or decode, implement packetization/depacketization and a custom jitter buffer
 - Receive packets, depacketize and inject into Encoded Transform (requires a constructor for EncodedAudioFrame/EncodedVideoFrame)
-- Observe incoming feedback and implement custom rate control (as long as the sending rate is lower than the bandwidth estimate provided by built-in congestion control)
+- Observe incoming feedback and/or estimations from built-in congestion control and implement custom rate control (as long as the sending rate is lower than the bandwidth estimate provided by built-in congestion control)
 - Obtain frames from Encoded Transform API, packetize, attach custom metadata, and send
 - Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
 - Forward RTP/RTCP packets from one PeerConnection to another, with full control over the entire packet (modulo SRTP/CC exceptions)
