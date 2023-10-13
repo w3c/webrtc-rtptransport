@@ -8,18 +8,19 @@ and [WebRTC Encoded Transform](https://www.w3.org/TR/webrtc-encoded-transform/),
 allowing applications to decide which pipeline stages to replace or keep.  
 
 The WebRTC-RtpTransport API enables web applications to support: 
-- Custom payloads (such as ML-based audio codecs)
-- Custom packetization 
-- Custom FEC
+- Custom payloads (ML-based audio codecs)
+- Custom packetization
+- Custom FEC 
 - Custom RTX
-- Custom Jitter Buffer
+- Custom Jitter Buffer 
+- Custom bandwidth estimate
 - Custom rate control (with built-in bandwidth estimate)
 - Custom bitrate allocation
 - Custom metadata (header extensions)
 - Custom RTCP messages
 - Custom RTCP message timing
-- RTP Forwarding
-
+- RTP forwarding
+  
 # Samples
 
 See the [explainer](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer.md) for more info.
