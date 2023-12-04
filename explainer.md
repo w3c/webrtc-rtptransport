@@ -87,10 +87,9 @@ WebRTC-RtpTransport enables these use cases by enabling applications to:
 ```javascript
 const pc = new RTCPeerConnection({encodedInsertableStreams: true});
 const rtpTransport = pc.createRtpTransport();
-pc.getSenders().forEach((sender) => {
-  sender.createEncodedStreams().readable.
+// Do custom packetization on the first sender
+pc.getSenders()[0].createEncodedStreams().readable.
       pipeThrough(createPacketizingTransformer()).pipeTo(rtpTransport.writable);
-});
 
 function createPacketizingTransformer() {
   return new TransformStream({
