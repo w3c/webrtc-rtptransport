@@ -84,6 +84,7 @@ WebRTC-RtpTransport enables these use cases by enabling applications to:
 
 ```javascript
 interface RtpPacket {
+  constructor(required RtpPacketInit);
   readonly attribute bool marker;
   readonly attribute octet payloadType;
   readonly attribute unsigned short sequenceNumber;
@@ -121,6 +122,7 @@ dictionary RtpPacketInit {
 }
 
 interface RtcpPacket {
+  constructor(required RtcpPacketInit);
   readonly attribute octet type;
   readonly attribute octet subType;
   readonly attribute ArrayBuffer value;  
@@ -140,6 +142,7 @@ interface RtxPacket {
 }
 
 interface RtpHeaderExtension {
+  constructor(required RtpHeaderExtensionInit);
   readonly attribute DOMString uri;
   readonly attribute ArrayBuffer value;
 }
