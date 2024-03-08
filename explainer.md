@@ -135,10 +135,17 @@ dictionary RtcpPacketInit {
 }
 
 interface RtxPacket {
+  constructor(required RtxPacketInit, RtpPacket);
   readonly attribute octet payloadType;
   readonly attribute unsigned short sequenceNumber;
   readonly attribute unsigned long ssrc;
   readonly attribute RtpPacket originalRtp;  
+}
+
+dictionary RtxPacketInit {
+  octet payloadType;
+  unsigned short sequenceNumber;
+  unsigned long ssrc;
 }
 
 interface RtpHeaderExtension {
