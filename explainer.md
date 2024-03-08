@@ -80,6 +80,76 @@ WebRTC-RtpTransport enables these use cases by enabling applications to:
 - Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
 - Forward RTP/RTCP packets from one PeerConnection to another, with full control over the entire packet (modulo SRTP/CC exceptions)
 
+## Bascis: RtpPacket, RtcpPacket, RtxPacket, RtpHeaderExtension
+
+```javascript
+interface RtpPacket {
+  readonly attribute bool marker;
+  readonly attribute octet payloadType;
+  readonly attribute unsigned short sequenceNumber;
+  readonly attribute unsigned long timestamp;
+  readonly attribute unsigned long ssrc;
+  readonly attribute sequence<unsigned long> csrcs;
+  readonly attribute sequence<RtpHeaderExtension> headerExtensions;
+  readonly attribute ArrayBuffer payload;
+
+  // Duplicate with header extensions, but conveniently parsed
+  readonly attribute DOMString? mid;
+  readonly attribute DOMString? rid;
+  readonly attribute octet? audioLevel;  
+  readonly attribute octet? videoRotation;
+  readonly attribute unsigned long long? remoteSendTimestamp;
+
+  // Extra information that may be useful to know
+  readonly attribute DOMHighResTimeStamp receivedTime;
+  readonly attribute unsigned long sequenceNumberRolloverCount;
+}
+
+dictionary RtpPacketInit {
+  bool marker = false;
+  octet payloadType;  // required
+  unsigned short sequenceNumber;  // optional for sendRtp
+  unsigned long timestamp;  // required
+  sequence<unsigned long> csrcs = [];
+  // Cannot be MID, RID, or congestion control sequence number
+  sequence<RtpHeaderExtensionInit> headerExtensions = [];
+  ArrayBuffer payload;  // required
+
+  // Convenience for adding to headerExtensions
+  octet audioLevel;    // optional
+  octet videoRotation;  // optional
+}
+
+interface RtcpPacket {
+  readonly attribute octet type;
+  readonly attribute octet subType;
+  readonly attribute ArrayBuffer value;  
+}
+
+dictionary RtcpPacketInit {
+  octet type;  // TODO: Should we force the type APP?
+  octet subType;  // AKA FMT
+  ArrayBuffer value;  
+}
+
+interface RtxPacket {
+  readonly attribute octet payloadType;
+  readonly attribute unsigned short sequenceNumber;
+  readonly attribute unsigned long ssrc;
+  readonly attribute RtpPacket originalRtp;  
+}
+
+interface RtpHeaderExtension {
+  readonly attribute DOMString uri;
+  readonly attribute ArrayBuffer value;
+}
+
+dictionary RtpHeaderExtensionInit {
+  DOMString uri;  // required
+  ArrayBuffer value;  // required
+}
+```
+
 ## Proposed solutions
 
 ## Example: Send with custom packetization
