@@ -108,13 +108,13 @@ interface RtpPacket {
 
 dictionary RtpPacketInit {
   bool marker = false;
-  octet payloadType;  // required
+  reuired octet payloadType;
   unsigned short sequenceNumber;  // optional for sendRtp
-  unsigned long timestamp;  // required
+  required unsigned long timestamp;
   sequence<unsigned long> csrcs = [];
   // Cannot be MID, RID, or congestion control sequence number
   sequence<RtpHeaderExtensionInit> headerExtensions = [];
-  ArrayBuffer payload;  // required
+  required ArrayBuffer payload;
 
   // Convenience for adding to headerExtensions
   octet audioLevel;    // optional
@@ -129,9 +129,9 @@ interface RtcpPacket {
 }
 
 dictionary RtcpPacketInit {
-  octet type;  // TODO: Should we force the type APP?
-  octet subType;  // AKA FMT
-  ArrayBuffer value;  
+  required octet type;  // TODO: Should we force the type APP?
+  required octet subType;  // AKA FMT
+  required ArrayBuffer value;  
 }
 
 interface RtxPacket {
@@ -143,9 +143,9 @@ interface RtxPacket {
 }
 
 dictionary RtxPacketInit {
-  octet payloadType;
-  unsigned short sequenceNumber;
-  unsigned long ssrc;
+  required octet payloadType;
+  required unsigned short sequenceNumber;
+  required unsigned long ssrc;
 }
 
 interface RtpHeaderExtension {
@@ -155,8 +155,8 @@ interface RtpHeaderExtension {
 }
 
 dictionary RtpHeaderExtensionInit {
-  DOMString uri;  // required
-  ArrayBuffer value;  // required
+  required DOMString uri;
+  required ArrayBuffer value;
 }
 ```
 
