@@ -161,7 +161,7 @@ dictionary RtpHeaderExtensionInit {
   required ArrayBuffer value;
 }
 ```
-### RtpSender/Rtp Receiver Extensions
+### RTCPeerConnection, RTCRtpSender, RTCRtpReceiver Extensions
 
 ```javascript
 partial interface PeerConnection {
