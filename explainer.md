@@ -161,6 +161,91 @@ dictionary RtpHeaderExtensionInit {
   required ArrayBuffer value;
 }
 ```
+### RtpSender/Rtp Receiver Extensions
+
+```javascript
+partial interface PeerConnection {
+  // There may be an RtpTransport with no RtpSenders and no RtpReceivers
+  readonly attribute sequence<RtpTransport> getRtpTransports();
+}
+partial interface RtpSender {
+  // shared between RtpSenders in the same BUNDLE group
+  readonly attribute RtpTransport? rtpTransport;
+  sequence<RtpSendStream> replaceSendStreams();
+}
+partial interface RtpReceiver {
+  // shared between RtpSenders in the same BUNDLE group
+  readonly attribute RtpTransport? rtpTransport;
+  sequence<RtpReceiveStream> replaceReceiveStreams();
+}
+
+interface RtpTransport {
+  // For custom RTCP
+  Promise<RtpSendStream> createRtpSendStream(RtpSendStreamInit);
+  Promise<RtpReceiveStream> createRtpReceiveStream(RtpReceiveStreamInit);
+}
+
+interface RtpSendStream {
+  readonly attribute DOMString mid?;  // Shared among RtpSendStreams
+  readonly attribute DOMString rid?;  // Unique (scoped to MID)
+  readonly attribute unsigned long ssrc;
+  readonly attribute unsigned long rtxSsrc;
+
+  // Goes to the network
+  Promise<RtpSent> sendRtp(RtpPacketInit packet, optional RtpSendOptions options);
+  void sendBye();
+  
+  // Comes from the network
+  attribute EventHandler onreceivepli;  // Cancellable
+  attribute EventHandler onreceivefir;  // Cancellable
+  attribute EventHandler onreceivenack; // sequence<unsigned short>
+  attribute EventHandler onreceivebye;
+
+  // not needed if we go with frame-level APIs instead
+  attribute EventHandler onrtppacketized;
+  sequence<RtpPacket> readPacketizedRtp(maxNumberOfPackets);
+
+  // If browser-owned, goes to the browser, 
+  void receivePli();
+  void receiveFir();
+  void receiveNack(sequence<unsigned short>);
+  void receiveBye();
+
+  // If browser-owned, amount the browser expects to use for this RID
+  readonly attribute unsigned long allocatedBandwidth;
+
+  // If app-owned, de-allocates the MID, RID, and SSRC
+  void close();
+}
+
+// This can be transferred to a worker.
+interface RtpReceiveStream {
+  readonly attribute DOMString mid?;
+  readonly attribute DOMString rid?;
+  readonly attribute sequence<unsigned long> ssrcs;
+  readonly attribute sequence<unsigned long> rtxSsrcs;
+
+  attribute EventHandler onrtpreceived;
+  sequence<RtpPacket> readReceivedRtp(maxNumberOfPackets);
+
+  // Goes to the network
+  void sendPli();
+  void sendFir();
+  void sendNack(sequence<unsigned short>);
+
+  // If browser-owned Comes from the browser;  Cancellable
+  attribute EventHandler onsendpli; // cancellable
+  attribute EventHandler onsendfir; // cancellable
+  attribute EventHandler onsendnack; // sequence<unsigned short> cancellable
+
+  // not needed if we go with frame-level APIs instead
+  void depacketizeRtp(RtpPacketInit packet);
+
+  // If app-owned, de-allocates the MID, RID, and SSRC
+  void close();
+}
+
+```
 
 ## Proposed solutions
 
