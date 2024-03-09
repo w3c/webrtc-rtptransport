@@ -80,7 +80,9 @@ WebRTC-RtpTransport enables these use cases by enabling applications to:
 - Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
 - Forward RTP/RTCP packets from one PeerConnection to another, with full control over the entire packet (modulo SRTP/CC exceptions)
 
-## RtpPacket, RtcpPacket, RtxPacket, RtpHeaderExtension
+## API Outline 
+
+### RtpPacket, RtcpPacket, RtxPacket, RtpHeaderExtension
 
 ```javascript
 interface RtpPacket {
