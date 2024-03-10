@@ -185,6 +185,7 @@ interface RtpTransport {
   Promise<RtpReceiveStream> createRtpReceiveStream(RtpReceiveStreamInit);
 }
 
+[Exposed=(Window,Worker), Transferable]
 interface RtpSendStream {
   readonly attribute DOMString mid?;  // Shared among RtpSendStreams
   readonly attribute DOMString rid?;  // Unique (scoped to MID)
@@ -218,7 +219,7 @@ interface RtpSendStream {
   void close();
 }
 
-// This can be transferred to a worker.
+[Exposed=(Window,Worker), Transferable]
 interface RtpReceiveStream {
   readonly attribute DOMString mid?;
   readonly attribute DOMString rid?;
