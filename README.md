@@ -25,4 +25,6 @@ The WebRTC-RtpTransport API enables web applications to support:
 
 See the [explainer](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer.md) for more info.
 
+See the [Custom Packetization Use Case ](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer-use-case-1.md) for some API info.
+
 See the [proposed spec]().
