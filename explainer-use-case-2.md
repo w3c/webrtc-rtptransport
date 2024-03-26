@@ -1,20 +1,21 @@
 # Custom Congestion Control Use Case
 
-## Use case description
+## Extended use cases
 
-In this use case, congestion control can be done by the application, but by doing custom bandwidth estimation and custom pacing and probing.
+Custom congestion control enables the following WebRTC Extended Use Cases (are there any?)
 
-## Goals
+## Detailed use case description
 
-Enable applications to do custom bandwidth estimation by enabling them to:
-- Have access to information about when RTP packets are sent and how large they are.
-- Have access to information about when congestion control feedback (ack messages) are received, which per-packet information about when they were received.
-- Have access to information used by L4S.
-- Know when a packet sent by the application is not sent, and why.
-- Efficiently control when packets are sent, in order to do custom pacing and probing.
+In this use case, congestion control can be done by the application, by doing custom bandwidth estimation and custom pacing and probing.
 
-## Key use-cases
+## API requirements
 
+Applications can do custom bandwidth estimation via:
+- Access to information about when RTP packets are sent and how large they are.
+- Access to information about when congestion control feedback (ack messages) are received, and per-packet information about when they were received.
+- Access to information used by L4S.
+- Knowledge of when an application packet is not sent, and why.
+- Efficient control of when packets are sent, in order to do custom pacing and probing.
 
 ## API Outline 
 
