@@ -2,11 +2,11 @@
 
 ## Extended use cases
 
-Custom congestion control enables the following WebRTC Extended Use Cases (are there any?)
+Does custom congestion control enable any WebRTC Extended Use Cases?
 
-## Detailed use case description
+## Detailed description
 
-In this use case, congestion control can be done by the application, by doing custom bandwidth estimation and custom pacing and probing.
+Congestion control can be done by the application, by doing custom bandwidth estimation and custom pacing and probing.
 
 ## API requirements
 
@@ -34,7 +34,6 @@ interface RtpSendResult {
   readonly attribute RtpUnsentReason unsent?;
 }
 
-
 interface RtpSent {
   readonly attribute DOMHighResTimeStamp time;
 
@@ -53,7 +52,6 @@ partial interface RtpTransport {
   attribute EventHandler onrtpacksreceived;  // RtpAcks
 }
 
-
 // RFC 8888 or Transport-cc feedback
 interface RtpAcks {
   readonly attribute sequence<RtpAck> acks;
@@ -70,13 +68,13 @@ interface RtpAck {
 
 // See RFC 3991 and RFC 3168
 enum ExplicitCongestionNotification {
+  // ECT = ECN-Capable Transport
   "unset",  // AKA "Not-ECT";  Bits: 00
   "scalable-congestion-not-experienced",  // AKA "ECT(1)" or "Scalable" or "L4S" ; Bits: 01
   "classic-congestion-not-experienced", // AKA "ECT(0)" or "Classic" or "not L4S"; Bits: 10
   "congestion-experienced" // AKA "CE" or "ECN-marked" or "marked"; Bits: 11
 }
 ```
-
 
 ## Proposed solutions
 
