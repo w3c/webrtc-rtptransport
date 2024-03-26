@@ -9,7 +9,7 @@ Custom packetization/depacketization enables the following WebRTC Extended Use C
 - [Section 3.2.2](https://www.w3.org/TR/webrtc-nv-use-cases/#auction): Low latency Broadcast with Fanout
 - [Section 3.5](https://www.w3.org/TR/webrtc-nv-use-cases/#vr*): Virtual Reality Gaming
 
-## Detailed use case description
+## Detailed description
 
 In this use case, packetization of encoded video frames (RTCEncodedVideoFrame) or audio frames (RTCEncodedAudioFrame) is handled by the application, as is depacketization. The encoded video or audio frames to be packetized can be obtained from the Encoded Transform API, or can be constructed using WebCodecs or WASM.  The codecs to be packetized/depacketized can be supported natively within WebRTC (e.g. Opus, VP8, H.264, etc.) or they could be codecs supported natively within WebCodecs (e.g. AAC) but not within WebRTC, or they could be codecs implemented in WASM but not supported natively in either WebRTC or WebCodecs (e.g. Lyra or Satin). 
 
