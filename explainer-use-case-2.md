@@ -1,9 +1,5 @@
 # Custom Congestion Control Use Case
 
-## Use case description
-
-In this use case, congestion control can be done by the application, but by doing custom bandwidth estimation and custom pacing and probing.
-
 ## Motivation
 
 Motivation
@@ -12,13 +8,16 @@ Motivation
 
 ## Goals
 
-Enable applications to do custom bandwidth estimation by enabling them to:
-- Have access to information about when RTP packets are sent and how large they are.
-- Have access to information about when congestion control feedback (ack messages) are received, which per-packet information about when they were received.
-- Have access to information used by L4S.
-- Know when a packet sent by the application is not sent, and why.
-- Efficiently control when packets are sent, in order to do custom pacing and probing.
+Congestion control can be done by the application, by doing custom bandwidth estimation and custom pacing and probing.
 
+## API requirements
+
+Applications can do custom bandwidth estimation via:
+- Access to information about when RTP packets are sent and how large they are.
+- Access to information about when congestion control feedback (ack messages) are received, and per-packet information about when they were received.
+- Access to information used by L4S.
+- Knowledge of when an application packet is not sent, and why.
+- Efficient control of when packets are sent, in order to do custom pacing and probing.
 
 ## API Outline 
 
@@ -36,7 +35,6 @@ interface RtpSendResult {
   readonly attribute RtpSent sent?;
   readonly attribute RtpUnsentReason unsent?;
 }
-
 
 interface RtpSent {
   readonly attribute DOMHighResTimeStamp time;
@@ -56,7 +54,6 @@ partial interface RtpTransport {
   attribute EventHandler onrtpacksreceived;  // RtpAcks
 }
 
-
 // RFC 8888 or Transport-cc feedback
 interface RtpAcks {
   readonly attribute sequence<RtpAck> acks;
@@ -73,6 +70,7 @@ interface RtpAck {
 
 // See RFC 3991 and RFC 3168
 enum ExplicitCongestionNotification {
+  // ECT = ECN-Capable Transport
   "unset",  // AKA "Not-ECT";  Bits: 00
   "scalable-congestion-not-experienced",  // AKA "ECT(1)" or "Scalable" or "L4S" ; Bits: 01
   "classic-congestion-not-experienced", // AKA "ECT(0)" or "Classic" or "not L4S"; Bits: 10
@@ -80,10 +78,9 @@ enum ExplicitCongestionNotification {
 }
 ```
 
+## Examples
 
-## Proposed solutions
-
-## Example: Custom BWE
+## Example 1: Custom BWE
 
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
@@ -102,7 +99,7 @@ rtpTransport.onrtpacksreceived = (rtpAcks) => {
 
 ```
 
-## Example: Custom Pacing and Probing
+## Example 2: Custom Pacing and Probing
 
 ```javascript
 const [pc, rtpSender1, rtpSender2] = setupPeerConnectionWithRtpSenders();  // Custom
