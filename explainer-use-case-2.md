@@ -4,6 +4,12 @@
 
 In this use case, congestion control can be done by the application, but by doing custom bandwidth estimation and custom pacing and probing.
 
+## Motivation
+
+Motivation
+- Allow applications to experiment with what works for their specific use case independent of the standards to improve the speed of innovation and iteration.
+- Improve connectivity for users by allowing the application to use its knowledge of the exact usage scenario to better evaluate trade-offs and manage the network connection actively.
+
 ## Goals
 
 Enable applications to do custom bandwidth estimation by enabling them to:
@@ -12,8 +18,6 @@ Enable applications to do custom bandwidth estimation by enabling them to:
 - Have access to information used by L4S.
 - Know when a packet sent by the application is not sent, and why.
 - Efficiently control when packets are sent, in order to do custom pacing and probing.
-
-## Key use-cases
 
 
 ## API Outline 
