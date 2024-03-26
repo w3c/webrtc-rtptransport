@@ -168,12 +168,14 @@ const videoTrackProcessor = new MediaStreamTrackProcessor(videoTrack);
 const videoFrameReader = videoTrackProcessor.readable.getReader();
 const videoEncoder = new VideoEncoder({
   output: (videoChunk, cfg) => {
-    const videoRtpPacket = packetizeVideoChunk(videoChunk, cfg);  // Custom
-    videoRtpSendStream.sendRtp(videoRtpPacket);
+    const videoRtpPackets = packetizeVideoChunk(videoChunk, cfg);
+    for (const videoRtpPacket of videoRtpPackets) {
+      videoRtpSendStream.sendRtp(videoRtpPacket);
+    }
   }
 });
 while (true) {
-  const { done, videoRrame } = await videoFrameReader.read();
+  const { done, videoFrame } = await videoFrameReader.read();
   videoEncoder.configure({
     latencyMode: "realtime",
     codec: "vp8",
@@ -201,6 +203,7 @@ videoRtpReceiveStream.onrtpreceived = () => {
   for (const videoRtpPacket of videoRtpPackets) {
     const assembledVideoFrames = depacketizeVideoRtpPacketAndInjectIntoJitterBuffer(videoRtpPacket);  // Custom
     for (const assembledVideoFrame of assembledVideoFrames) {
+      // Question: can assembledVideoFrames be assumed to be decodable (e.g. no gaps)?
       decoder.decode(assembledVideoFrame);
     }
   }
