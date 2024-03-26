@@ -1,10 +1,31 @@
 # Custom Packetization Use Case
 
-## Use case description
+## Extended use cases
+
+Custom packetization/depacketization enables the following WebRTC Extended Use Cases: 
+
+- [Section 2.3](https://www.w3.org/TR/webrtc-nv-use-cases/#videoconferencing*): Video Conferencing with a Central Server
+- [Section 3.2.1](https://www.w3.org/TR/webrtc-nv-use-cases/#game-streaming): Game streaming
+- [Section 3.2.2](https://www.w3.org/TR/webrtc-nv-use-cases/#auction): Low latency Broadcast with Fanout
+- [Section 3.5](https://www.w3.org/TR/webrtc-nv-use-cases/#vr*): Virtual Reality Gaming
+
+## Detailed use case description
 
 In this use case, packetization of encoded video frames (RTCEncodedVideoFrame) or audio frames (RTCEncodedAudioFrame) is handled by the application, as is depacketization. The encoded video or audio frames to be packetized can be obtained from the Encoded Transform API, or can be constructed using WebCodecs or WASM.  The codecs to be packetized/depacketized can be supported natively within WebRTC (e.g. Opus, VP8, H.264, etc.) or they could be codecs supported natively within WebCodecs (e.g. AAC) but not within WebRTC, or they could be codecs implemented in WASM but not supported natively in either WebRTC or WebCodecs (e.g. Lyra or Satin). 
 
-## Goals
+Custom packetization/depacketization enables applications to do things such as:
+- Encode with a custom (WASM) codec, packetize and send
+- Obtain frames from Encoded Transform API, packetize and send
+- Obtain frames from Encoded Transform API, apply custom FEC, and send
+- Observe incoming NACKs and resend with custom RTX behavior
+- Observe incoming packets and customize when NACKs are sent
+- Receive packets using a custom jitter buffer implementation
+- Use WebCodecs for encode or decode, implement packetization/depacketization and a custom jitter buffer
+- Receive packets, depacketize and inject into Encoded Transform (relies on a constructor for EncodedAudioFrame/EncodedVideoFrame)
+- Obtain frames from Encoded Transform API, packetize, attach custom metadata, and send
+- Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
+
+## API requirements
 
 Enable applications to do custom packetization/depacketization by enabling them to:
 
@@ -13,27 +34,6 @@ Enable applications to do custom packetization/depacketization by enabling them 
 - Know what bitrates the browser has already allocate to send.
 - Know what bitrate can be sent in addition to what the browser has already allocated to send.
 - Cause the browser to allocate less to send, leaving more bitrate available to the application to send.
-
-## Key use-cases
-
-Custom packetization/depacketiztion enables the following WebRTC Extended Use Cases: 
-
-- [Section 2.3](https://www.w3.org/TR/webrtc-nv-use-cases/#videoconferencing*): Video Conferencing with a Central Server
-- [Section 3.2.1](https://www.w3.org/TR/webrtc-nv-use-cases/#game-streaming): Game streaming
-- [Section 3.2.2](https://www.w3.org/TR/webrtc-nv-use-cases/#auction): Low latency Broadcast with Fanout
-- [Section 3.5](https://www.w3.org/TR/webrtc-nv-use-cases/#vr*): Virtual Reality Gaming
-
-Custom packetization/depacketiztion will also enable applications to things such as:
-- Encode with a custom (WASM) codec, packetize and send
-- Obtain frames from Encoded Transform API, packetize and send
-- Obtain frames from Encoded Transform API, apply custom FEC, and send
-- Observe incoming NACKs and resend with custom RTX behavior
-- Observe incoming packets and customize when NACKs are sent
-- Receive packets using a custom jitter buffer implementation
-- Use WebCodecs for encode or decode, implement packetization/depacketization and a custom jitter buffer
-- Receive packets, depacketize and inject into Encoded Transform (requires a constructor for EncodedAudioFrame/EncodedVideoFrame)
-- Obtain frames from Encoded Transform API, packetize, attach custom metadata, and send
-- Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
 
 ## API Outline 
 
