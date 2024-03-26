@@ -156,9 +156,9 @@ interface RtpReceiveStream {
 }
 ```
 
-## Proposed solutions
+## Examples
 
-## Example: Send with custom packetization (using WebCodecs)
+## Example 1: Send with custom packetization (using WebCodecs)
 
 ```javascript
 const videoTrack = await openVideoTrack();  // Custom
@@ -187,7 +187,7 @@ while (true) {
 }
 ```
 
-## Example: Receive with custom packetization (using WebCodecs)
+## Example 2: Receive with custom packetization (using WebCodecs)
 ```javascript
 const [pc, videoRtpReceiver] = await setupPeerConnectionWithRtpReceiver();  // Custom
 const videoRtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];  // Custom
@@ -207,7 +207,7 @@ videoRtpReceiveStream.onrtpreceived = () => {
 };
 ```
 
-## Example: Custom bitrate allocation
+## Example 3: Custom bitrate allocation
 ```javascript
 const [pc, rtpTransport] = await setupPeerConnectionWithRtpSender();
 setInterval(() => {
