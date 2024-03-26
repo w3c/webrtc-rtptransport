@@ -76,9 +76,9 @@ enum ExplicitCongestionNotification {
 }
 ```
 
-## Proposed solutions
+## Examples
 
-## Example: Custom BWE
+## Example 1: Custom BWE
 
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
@@ -97,7 +97,7 @@ rtpTransport.onrtpacksreceived = (rtpAcks) => {
 
 ```
 
-## Example: Custom Pacing and Probing
+## Example 2: Custom Pacing and Probing
 
 ```javascript
 const [pc, rtpSender1, rtpSender2] = setupPeerConnectionWithRtpSenders();  // Custom
