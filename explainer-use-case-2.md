@@ -1,10 +1,12 @@
 # Custom Congestion Control Use Case
 
-## Extended use cases
+## Motivation
 
-Does custom congestion control enable any WebRTC Extended Use Cases?
+Motivation
+- Allow applications to experiment with what works for their specific use case independent of the standards to improve the speed of innovation and iteration.
+- Improve connectivity for users by allowing the application to use its knowledge of the exact usage scenario to better evaluate trade-offs and manage the network connection actively.
 
-## Detailed description
+## Goals
 
 Congestion control can be done by the application, by doing custom bandwidth estimation and custom pacing and probing.
 
