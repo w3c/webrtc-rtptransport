@@ -18,7 +18,7 @@ Custom packetization/depacketization enables applications to do things such as:
 - Observe incoming NACKs and resend with custom RTX behavior
 - Observe incoming packets and customize when NACKs are sent
 - Receive packets using a custom jitter buffer implementation
-- Use WebCodecs for encode or decode, implement packetization/depacketization and a custom jitter buffer
+- Use WebCodecs for encode or decode, implement packetization/depacketization, a custom jitter buffer, and custom FEC
 - Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
 
 ## API requirements
