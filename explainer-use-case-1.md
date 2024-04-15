@@ -11,18 +11,14 @@ Custom packetization/depacketization enables the following WebRTC Extended Use C
 
 ## Detailed description
 
-In this use case, packetization of encoded video frames (RTCEncodedVideoFrame) or audio frames (RTCEncodedAudioFrame) is handled by the application, as is depacketization. The encoded video or audio frames to be packetized can be obtained from the Encoded Transform API, or can be constructed using WebCodecs or WASM.  The codecs to be packetized/depacketized can be supported natively within WebRTC (e.g. Opus, VP8, H.264, etc.) or they could be codecs supported natively within WebCodecs (e.g. AAC) but not within WebRTC, or they could be codecs implemented in WASM but not supported natively in either WebRTC or WebCodecs (e.g. Lyra or Satin). 
+In this use case, packetization of encoded video or audio frames is handled by the application, as is depacketization. The encoded video or audio frames to be packetized can be constructed using WebCodecs or WASM.  The codecs to be packetized/depacketized can be supported natively within WebRTC (e.g. Opus, VP8, H.264, etc.) or they could be codecs supported natively within WebCodecs (e.g. AAC) but not within WebRTC, or they could be codecs implemented in WASM but not supported natively in either WebRTC or WebCodecs (e.g. Lyra or Satin). 
 
 Custom packetization/depacketization enables applications to do things such as:
 - Encode with a custom (WASM) codec, packetize and send
-- Obtain frames from Encoded Transform API, packetize and send
-- Obtain frames from Encoded Transform API, apply custom FEC, and send
 - Observe incoming NACKs and resend with custom RTX behavior
 - Observe incoming packets and customize when NACKs are sent
 - Receive packets using a custom jitter buffer implementation
 - Use WebCodecs for encode or decode, implement packetization/depacketization and a custom jitter buffer
-- Receive packets, depacketize and inject into Encoded Transform (relies on a constructor for EncodedAudioFrame/EncodedVideoFrame)
-- Obtain frames from Encoded Transform API, packetize, attach custom metadata, and send
 - Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
 
 ## API requirements
