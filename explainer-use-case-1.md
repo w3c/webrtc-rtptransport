@@ -35,6 +35,10 @@ Enable applications to do custom packetization/depacketization by enabling them 
 - Know what bitrate can be sent in addition to what the browser has already allocated to send.
 - Cause the browser to allocate less to send, leaving more bitrate available to the application to send.
 
+Complexities of sending and receiving RTP other than these requirements are still handled by the User Agent - in
+particular Pacing of sent packets on the wire, inclusion of padding to support bandwidth probing, and RTP Sequence
+Numbering taking into account such padding. 
+
 ## API Outline 
 
 ### RtpPacket, RtcpPacket
@@ -72,8 +76,6 @@ interface RtpHeaderExtension {
 dictionary RtpPacketInit {
   bool marker = false;
   required octet payloadType;
-  // When sending, can be filled in automatically
-  unsigned short sequenceNumber;
   required unsigned long timestamp;
   sequence<unsigned long> csrcs = [];
   // Cannot be MID, RID, or congestion control sequence number
