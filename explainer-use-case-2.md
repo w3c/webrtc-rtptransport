@@ -55,7 +55,7 @@ partial interface RtpTransport {
   attribute unsigned long customMaxBandwidth;
 
   attribute bool customPacer;
-  attribute EventHandler onrtppacketized;  // No payload.  Call readPacketizedRtp
+  attribute EventHandler onpacketizedrtpfavailable;  // No payload.  Call readPacketizedRtp
   sequence<RtpPacket> readPacketizedRtp(maxNumberOfPackets);
 }
 
@@ -110,7 +110,7 @@ rtpTransport.onrtpacksreceived = (rtpAcks) => {
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
 const pacer = createPacer();  // Custom
 rtpTransport.customPacer = true;
-rtpTransport.onrtppacketized = () => {
+rtpTransport.onpacketizedrtpfavailable = () => {
   for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
     pacer.enqueue(rtpPacket);
   }
@@ -134,12 +134,12 @@ const pacer = createPacer();  // Custom
 rtpTransport.customPacer = true;
 
 async function pacePacketBatch() {
-  rtpTransport.onrtppacketized = undefined;
+  rtpTransport.onpacketizedrtpfavailable = undefined;
   while(true) {
     let pendingPackets = rtpTransport.readPacketizedRtp(100);
     if (pendingPackets.size() == 0) {
       // No packets available synchronously. Wait for the next available packet.
-      rtpTransport.onrtppacketized = pacePacketBatch;
+      rtpTransport.onpacketizedrtpfavailable = pacePacketBatch;
       return;
     }
     for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
