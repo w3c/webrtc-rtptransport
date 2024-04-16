@@ -54,8 +54,12 @@ partial interface RtpTransport {
   attribute EventHandler onrtpacksreceived;  // RtpAcks
   attribute unsigned long customMaxBandwidth;
 
+  // Means "continue to encode and packetize packets, but don't send them.
+  // Instead give them to me via onpacketizedrtpavailable/readPacketizedRtp
+  // and I will send them."
+  // TODO: Think of a better name, or perhaps do this per-RtpSendStream.
   attribute bool customPacer;
-  attribute EventHandler onpacketizedrtpfavailable;  // No payload.  Call readPacketizedRtp
+  attribute EventHandler onpacketizedrtpavailable;  // No payload.  Call readPacketizedRtp
   sequence<RtpPacket> readPacketizedRtp(maxNumberOfPackets);
 }
 
@@ -110,7 +114,7 @@ rtpTransport.onrtpacksreceived = (rtpAcks) => {
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
 const pacer = createPacer();  // Custom
 rtpTransport.customPacer = true;
-rtpTransport.onpacketizedrtpfavailable = () => {
+rtpTransport.onpacketizedrtpavailable = () => {
   for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
     pacer.enqueue(rtpPacket);
   }
@@ -134,12 +138,12 @@ const pacer = createPacer();  // Custom
 rtpTransport.customPacer = true;
 
 async function pacePacketBatch() {
-  rtpTransport.onpacketizedrtpfavailable = undefined;
+  rtpTransport.onpacketizedrtpavailable = undefined;
   while(true) {
     let pendingPackets = rtpTransport.readPacketizedRtp(100);
     if (pendingPackets.size() == 0) {
       // No packets available synchronously. Wait for the next available packet.
-      rtpTransport.onpacketizedrtpfavailable = pacePacketBatch;
+      rtpTransport.onpacketizedrtpavailable = pacePacketBatch;
       return;
     }
     for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
