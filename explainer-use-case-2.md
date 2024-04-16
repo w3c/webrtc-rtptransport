@@ -52,6 +52,11 @@ enum RtpUnsentReason {
 partial interface RtpTransport {
   attribute EventHandler onrtpsent;  // RtpSent
   attribute EventHandler onrtpacksreceived;  // RtpAcks
+  attribute unsigned long customMaxBandwidth;
+
+  attribute bool customPacer;
+  attribute EventHandler onrtppacketized;  // No payload.  Call readPacketizedRtp
+  sequence<RtpPacket> readPacketizedRtp(maxNumberOfPackets);
 }
 
 // RFC 8888 or Transport-cc feedback
@@ -93,7 +98,7 @@ rtpTransport.onrtpsent = (rtpSent) => {
 rtpTransport.onrtpacksreceived = (rtpAcks) => {
     for (const rtpAck in rtpAcks.acks) {
         const bwe = estimator.processReceivedAcks(rtpAck);
-        doBitrateAllocationAndUpdateEncoders(bwe);  // Custom
+        rtpTransport.customMaxBandwidth = bwe;
     }
 }
 
@@ -102,10 +107,15 @@ rtpTransport.onrtpacksreceived = (rtpAcks) => {
 ## Example 2: Custom Pacing and Probing
 
 ```javascript
-const [pc, rtpSender1, rtpSender2] = setupPeerConnectionWithRtpSenders();  // Custom
+const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
 const pacer = createPacer();  // Custom
+rtpTransport.customPacer = true;
+rtpTransport.onrtppacketized = () => {
+  for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
+    pacer.enqueue(rtpPacket);
+  }
+}
 while (true) {
-    // Packets are queued by using pacer.sendRtp(rtpSender, rtpPacket) instead of rtpSender.sendRtp(rtpPacket)
     const [rtpSender, packet, sendTime] = await pacer.dequeue();  // Custom
     const rtpSent = rtpSender.sendRtp(packet, {sendTime: sendTime});
     (async () => {
