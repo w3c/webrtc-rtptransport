@@ -124,6 +124,32 @@ while (true) {
 }
 ```
 
+## Example 3: Batched pacing
+Making use of the synchronous readPacketizedRtp method to only read packets in batches
+at a controlled frequency.
+
+```javascript
+const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
+const pacer = createPacer();  // Custom
+rtpTransport.customPacer = true;
+
+async function pacePacketBatch() {
+  rtpTransport.onrtppacketized = undefined;
+  while(true) {
+    let pendingPackets = rtpTransport.readPacketizedRtp(100);
+    if (pendingPackets.size() == 0) {
+      // No packets available synchronously. Wait for the next available packet.
+      rtpTransport.onrtppacketized = pacePacketBatch;
+      return;
+    }
+    for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
+      pacer.enqueue(rtpPacket);
+    }
+    // Wait 20ms before processing more packets.
+    await new Promise(resolve => {setTimeout(resolve, 20)});
+  }
+}
+```
 
 ## Alternative designs considered
 
