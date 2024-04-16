@@ -49,16 +49,23 @@ enum RtpUnsentReason {
   "transport-unavailable",
 };
 
-partial interface RtpTransport {
-  attribute EventHandler onrtpsent;  // RtpSent
-  attribute EventHandler onrtpacksreceived;  // RtpAcks
-  attribute unsigned long customMaxBandwidth;
-
+// Add this to RTCConfiguration
+dictionary RTCConfiguration {
   // Means "continue to encode and packetize packets, but don't send them.
   // Instead give them to me via onpacketizedrtpavailable/readPacketizedRtp
   // and I will send them."
-  // TODO: Think of a better name, or perhaps do this per-RtpSendStream.
-  attribute bool customPacer;
+  // TODO: Think of a better name
+  bool customPacer;
+}
+
+partial interface RtpTransport {
+  attribute EventHandler onrtpsent;  // RtpSent
+  attribute EventHandler onrtpacksreceived;  // RtpAcks
+  // Means "when doing bitrate allocation and rate control, don't use more than this"
+  attribute unsigned long customMaxBandwidth;
+  // Means "make each packet smaller by this much so I can put custom stuff in each packet"
+  attribute unsigned long customPerPacketOverhead;
+  
   attribute EventHandler onpacketizedrtpavailable;  // No payload.  Call readPacketizedRtp
   sequence<RtpPacket> readPacketizedRtp(maxNumberOfPackets);
 }
@@ -111,9 +118,8 @@ rtpTransport.onrtpacksreceived = (rtpAcks) => {
 ## Example 2: Custom Pacing and Probing
 
 ```javascript
-const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
+const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport({customPacer: true});  // Custom
 const pacer = createPacer();  // Custom
-rtpTransport.customPacer = true;
 rtpTransport.onpacketizedrtpavailable = () => {
   for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
     pacer.enqueue(rtpPacket);
