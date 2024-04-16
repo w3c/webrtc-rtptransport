@@ -49,9 +49,25 @@ enum RtpUnsentReason {
   "transport-unavailable",
 };
 
+// Add this to RTCConfiguration
+dictionary RTCConfiguration {
+  // Means "continue to encode and packetize packets, but don't send them.
+  // Instead give them to me via onpacketizedrtpavailable/readPacketizedRtp
+  // and I will send them."
+  // TODO: Think of a better name
+  bool customPacer;
+}
+
 partial interface RtpTransport {
   attribute EventHandler onrtpsent;  // RtpSent
   attribute EventHandler onrtpacksreceived;  // RtpAcks
+  // Means "when doing bitrate allocation and rate control, don't use more than this"
+  attribute unsigned long customMaxBandwidth;
+  // Means "make each packet smaller by this much so I can put custom stuff in each packet"
+  attribute unsigned long customPerPacketOverhead;
+  
+  attribute EventHandler onpacketizedrtpavailable;  // No payload.  Call readPacketizedRtp
+  sequence<RtpPacket> readPacketizedRtp(maxNumberOfPackets);
 }
 
 // RFC 8888 or Transport-cc feedback
@@ -93,7 +109,7 @@ rtpTransport.onrtpsent = (rtpSent) => {
 rtpTransport.onrtpacksreceived = (rtpAcks) => {
     for (const rtpAck in rtpAcks.acks) {
         const bwe = estimator.processReceivedAcks(rtpAck);
-        doBitrateAllocationAndUpdateEncoders(bwe);  // Custom
+        rtpTransport.customMaxBandwidth = bwe;
     }
 }
 
@@ -102,10 +118,14 @@ rtpTransport.onrtpacksreceived = (rtpAcks) => {
 ## Example 2: Custom Pacing and Probing
 
 ```javascript
-const [pc, rtpSender1, rtpSender2] = setupPeerConnectionWithRtpSenders();  // Custom
+const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport({customPacer: true});  // Custom
 const pacer = createPacer();  // Custom
+rtpTransport.onpacketizedrtpavailable = () => {
+  for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
+    pacer.enqueue(rtpPacket);
+  }
+}
 while (true) {
-    // Packets are queued by using pacer.sendRtp(rtpSender, rtpPacket) instead of rtpSender.sendRtp(rtpPacket)
     const [rtpSender, packet, sendTime] = await pacer.dequeue();  // Custom
     const rtpSent = rtpSender.sendRtp(packet, {sendTime: sendTime});
     (async () => {
@@ -114,6 +134,32 @@ while (true) {
 }
 ```
 
+## Example 3: Batched pacing
+Making use of the synchronous readPacketizedRtp method to only read packets in batches
+at a controlled frequency.
+
+```javascript
+const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
+const pacer = createPacer();  // Custom
+rtpTransport.customPacer = true;
+
+async function pacePacketBatch() {
+  rtpTransport.onpacketizedrtpavailable = undefined;
+  while(true) {
+    let pendingPackets = rtpTransport.readPacketizedRtp(100);
+    if (pendingPackets.size() == 0) {
+      // No packets available synchronously. Wait for the next available packet.
+      rtpTransport.onpacketizedrtpavailable = pacePacketBatch;
+      return;
+    }
+    for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
+      pacer.enqueue(rtpPacket);
+    }
+    // Wait 20ms before processing more packets.
+    await new Promise(resolve => {setTimeout(resolve, 20)});
+  }
+}
+```
 
 ## Alternative designs considered
 
