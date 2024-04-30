@@ -15,8 +15,7 @@ In this use case, packetization of encoded video or audio frames is handled by t
 
 Custom packetization/depacketization enables applications to do things such as:
 - Encode with a custom (WASM) codec, packetize and send
-- Observe incoming NACKs and resend with custom RTX behavior
-- Observe incoming packets and customize when NACKs are sent
+- Observe incoming packets
 - Receive packets using a custom jitter buffer implementation
 - Use WebCodecs for encode or decode, implement packetization/depacketization, a custom jitter buffer, and custom FEC
 - Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
@@ -86,20 +85,6 @@ dictionary RtpPacketInit {
 dictionary RtpHeaderExtensionInit {
   required DOMString uri;
   required ArrayBuffer value;
-}
-
-interface RtcpPacket {
-  constructor(required RtcpPacketInit);
-  readonly attribute octet type;
-  readonly attribute octet subType;
-  readonly attribute ArrayBuffer value;  
-}
-
-dictionary RtcpPacketInit {
-  // TODO: Should we force the type APP?
-  required octet type;
-  required octet subType;  // AKA FMT
-  required ArrayBuffer value;  
 }
 
 ```
