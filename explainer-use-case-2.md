@@ -13,7 +13,7 @@ Congestion control can be done by the application, by doing custom bandwidth est
 ## API requirements
 
 Applications can do custom bandwidth estimation via:
-- Access to information about when RTP packets are sent and how large they are.
+- Access to information about when RTP packets are sent, both application supplied and UA packetized, and how large they are.
 - Access to information about when congestion control feedback (ack messages) are received, and per-packet information about when they were received.
 - Access to information used by L4S.
 - Knowledge of when an application packet is not sent, and why.
