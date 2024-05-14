@@ -52,14 +52,14 @@ rtpSendStream.onpacketizedrtp = () => {
 ### Example 2: Send custom RTP header extension
 
 ```javascript
-// TODO: Negotiate headerExtensionCalculator.uri in SDP
+// TODO: Negotiate headerExtensionCalculator.id in SDP
 const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const headerExtensionGenerator = new CustomHeaderExtensionGenerator();
 const rtpSendStream = await rtpSender.replaceSendStreams()[0];
 rtpSendStream.onpacketizedrtp = () => {
   for (const rtpPacket of rtpSendStream.readPacketizedRtp()) {
     rtpPacket.setHeaderExtension({
-      uri: headerExtensionGenerator.uri,
+      id: headerExtensionGenerator.id,
       value: headerExtensionGenerator.generate(rtpPacket),
     });
     rtpSendStream.sendRtp(rtpPacket)
@@ -70,14 +70,14 @@ rtpSendStream.onpacketizedrtp = () => {
 ### Example 3: Receive custom RTP header extension
 
 ```javascript
-// TODO: Negotiate headerExtensionProcessor.uri in SDP
+// TODO: Negotiate headerExtensionProcessor.id in SDP
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const headerExtensionProcessor = new CustomHeaderExtensionProcessor();
 const rtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];
 rtpReceiveStream.onreceivedrtp = () => {
   for (const rtpPacket of rtpReceiveStream.readReceivedRtp()) {
     for (const headerExtension of rtpPacket.headerExtensions) {
-      if (headerExtension.uri == headerExtensionProcessor.uri) {
+      if (headerExtension.id == headerExtensionProcessor.id) {
         headerExtensionProcessor.process(headerExtension.value);
       }
     }
@@ -216,7 +216,7 @@ rtpReceiveStream.onrtpreceived = () => {
 ### Example 10: Send custom FEC
 
 ```javascript
-// TODO: Negotiate headerExtensionCalculator.uri in SDP
+// TODO: Negotiate headerExtensionCalculator.id in SDP
 const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const fecGenerator = new CustomFecGenerator();
 const rtpSendStream = await rtpSender.replaceSendStreams()[0];
@@ -233,7 +233,7 @@ rtpSendStream.onpacketizedrtp = () => {
 ### Example 11: Receive custom FEC
 
 ```javascript
-// TODO: Negotiate headerExtensionProcessor.uri in SDP
+// TODO: Negotiate headerExtensionProcessor.id in SDP
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const fecProcessor = new CustomFecProcessor();
 const rtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];

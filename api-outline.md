@@ -31,7 +31,7 @@ interface RtpPacket {
 
 interface RtpHeaderExtension {
   constructor(required RtpHeaderExtensionInit);
-  readonly attribute DOMString uri;
+  readonly attribute octet id;
   readonly attribute ArrayBuffer value;
   undefined copyValueTo(AllowSharedBufferSource destination);
 }
@@ -51,7 +51,7 @@ dictionary RtpPacketInit {
 }
 
 dictionary RtpHeaderExtensionInit {
-  required DOMString uri;
+  required octet id;
   required AllowSharedBufferSource value;
 }
 
