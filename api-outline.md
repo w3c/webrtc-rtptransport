@@ -15,13 +15,6 @@ interface RtpPacket {
   // allowing for BYOB.
   undefined copyPayloadTo(AllowSharedBufferSource destination);
 
-  // OPTIONAL: Duplicate with header extensions, but conveniently parsed
-  readonly attribute DOMString? mid;
-  readonly attribute DOMString? rid;
-  attribute octet? audioLevel;  
-  attribute octet? videoRotation;
-  readonly attribute unsigned long long? remoteSendTimestamp;
-
   // OPTIONAL: Extra information that may be useful to know
   readonly attribute DOMHighResTimeStamp receivedTime;
   readonly attribute unsigned long sequenceNumberRolloverCount;
@@ -44,10 +37,6 @@ dictionary RtpPacketInit {
   // Cannot be MID, RID, or congestion control sequence number
   sequence<RtpHeaderExtensionInit> headerExtensions = [];
   required AllowSharedBufferSource payload;
-
-  // Convenience for adding to headerExtensions
-  octet audioLevel;
-  octet videoRotation;
 }
 
 dictionary RtpHeaderExtensionInit {
