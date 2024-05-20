@@ -54,13 +54,15 @@ interface RtpPacket {
   // OPTIONAL: Duplicate with header extensions, but conveniently parsed
   readonly attribute DOMString? mid;
   readonly attribute DOMString? rid;
-  readonly attribute octet? audioLevel;  
-  readonly attribute octet? videoRotation;
+  attribute octet? audioLevel;  
+  attribute octet? videoRotation;
   readonly attribute unsigned long long? remoteSendTimestamp;
 
   // OPTIONAL: Extra information that may be useful to know
   readonly attribute DOMHighResTimeStamp receivedTime;
   readonly attribute unsigned long sequenceNumberRolloverCount;
+
+  void setHeaderExtension(RtpHeaderExtension);
 }
 
 interface RtpHeaderExtension {
@@ -136,9 +138,12 @@ interface RtpSendStream {
   readonly attribute unsigned long ssrc;
   readonly attribute unsigned long rtxSsrc;
 
-  void sendRtp(RtpPacketInit packet);
+  attribute EventHandler onpacketizedrtp;
+  sequence<RtpPacket> readPacketizedRtp(long maxNumberOfPackets);
+
+  void sendRtp(RtpPacket packet);
   
-  // Amount allocated by the browser
+// Amount allocated by the browser
   readonly attribute unsigned long allocatedBandwidth;
 }
 
@@ -149,66 +154,227 @@ interface RtpReceiveStream {
   readonly attribute sequence<unsigned long> ssrcs;
   readonly attribute sequence<unsigned long> rtxSsrcs;
 
-  attribute EventHandler onrtpreceived;
+  attribute EventHandler onreceivedrtp;
   sequence<RtpPacket> readReceivedRtp(long maxNumberOfPackets);
+
+  void receiveRtp(RtpPacket packet)
 }
 ```
 
 ## Examples
 
-## Example 1: Send with custom packetization (using WebCodecs)
+### Example 1: Send customized RTP header extension (audio level)
 
 ```javascript
-const videoTrack = await openVideoTrack();  // Custom
-const [pc, videoRtpSender] = await setupPeerConnectionWithRtpSender();  // Custom
-const videoRtpSendStream = await videoRtpSender.replaceSendStreams()[0];
-const videoTrackProcessor = new MediaStreamTrackProcessor(videoTrack);
-const videoFrameReader = videoTrackProcessor.readable.getReader();
-const videoEncoder = new VideoEncoder({
-  output: (videoChunk, cfg) => {
-    const videoRtpPackets = packetizeVideoChunk(videoChunk, cfg);
-    for (const videoRtpPacket of videoRtpPackets) {
-      videoRtpSendStream.sendRtp(videoRtpPacket);
-    }
-  }
-});
-while (true) {
-  const { done, videoFrame } = await videoFrameReader.read();
-  videoEncoder.configure({
-    latencyMode: "realtime",
-    codec: "vp8",
-    framerate: 30,
-    bitrate: videoRtpSendStream.allocatedBandwidth,
-  });
-  videoEncoder.encode(videoFrame);
-  if (done) {
-    break;
-  }
-}
+const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
+const levelGenerator = new CustomAudioLevelCalculator();
+const rtpSendStream = await rtpSender.replaceSendStreams()[0];
+rtpSendStream.onpacketizedrtp = () => {
+  const rtpPacket = rtpSendStream.readPacketizedRtp();
+  rtpPacket.audioLevel = levelGenerator.generate(rtpPacket);
+  rtpSendStream.sendRtp(rtpPacket);
+};
 ```
 
-## Example 2: Receive with custom packetization (using WebCodecs)
+### Example 2: Send custom RTP header extension
+
 ```javascript
-const [pc, videoRtpReceiver] = await setupPeerConnectionWithRtpReceiver();  // Custom
-const videoRtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];  // Custom
-const videoDecoder = new VideoDecoder({
-  output: (frame) => {
-    renderVideoFrame(frame);  // Custom
-  }
-});
-videoRtpReceiveStream.onrtpreceived = () => {
-  const videoRtpPackets = videoRtpReceiveStream.readReceivedRtp(10);
-  for (const videoRtpPacket of videoRtpPackets) {
-    const assembledVideoFrames = depacketizeVideoRtpPacketAndInjectIntoJitterBuffer(videoRtpPacket);  // Custom
-    for (const assembledVideoFrame of assembledVideoFrames) {
-      // Question: can assembledVideoFrames be assumed to be decodable (e.g. no gaps)?
-      decoder.decode(assembledVideoFrame);
-    }
+// TODO: Negotiate headerExtensionCalculator.uri in SDP
+const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
+const headerExtensionGenerator = new CustomHeaderExtensionGenerator();
+const rtpSendStream = await rtpSender.replaceSendStreams()[0];
+rtpSendStream.onpacketizedrtp = () => {
+  for (const rtpPacket of rtpSendStream.readPacketizedRtp()) {
+    rtpPacket.setHeaderExtension({
+      uri: headerExtensionGenerator.uri,
+      value: headerExtensionGenerator.generate(rtpPacket),
+    });
+    rtpSendStream.sendRtp(rtpPacket)
   }
 };
 ```
 
-## Example 3: Custom bitrate allocation
+### Example 3: Receive custom RTP header extension
+
+```javascript
+// TODO: Negotiate headerExtensionProcessor.uri in SDP
+const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
+const headerExtensionProcessor = new CustomHeaderExtensionProcessor();
+const rtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];
+rtpReceiveStream.onreceivedrtp = () => {
+  for (const rtpPacket of rtpReceiveStream.readReceivedRtp()) {
+    for (const headerExtension of rtpPacket.headerExtensions) {
+      if (headerExtension.uri == headerExtensionProcessor.uri) {
+        headerExtensionProcessor.process(headerExtension.value);
+      }
+    }
+    rtpReceiveStream.receiveRtp(rtpPacket);
+  }
+}
+```
+
+### Example 4: Send and packetize with custom codec (WASM)
+
+```javascript
+const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
+const source = new CustomSource();
+const encoder = new CustomEncoder();
+const packetizer = new CustomPacketizer();
+const rtpSendStream = await rtpSender.replaceSendStreams()[0];
+for await (const rawFame in source.frames()) {
+  encoder.setTargetBitrate(rtpSendStream.allocatedBandwidth);
+  const encodedFrame = encoder.encode(rawFrame);
+  const rtpPackets = packetizer.packetize(encodedFrame);
+  for (const rtpPacket of rtpPackets) {
+    rtpSendStream.sendRtp(rtpPackets);
+  }
+}
+```
+
+### Example 5: Receive with custom codec (WASM) and jitter buffer
+
+```javascript
+const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
+const jitterBuffer = new CustomJitterBuffer();
+const renderer = new CustomRenderer();
+const rtpReceiveStream = await rtpReceiver.replaceReceiveStreams()[0];
+rtpReceiveStream.onreceivedrtp = () => {
+  const rtpPackets = rtpReceiveStream.readReceivedRtp();
+  jitterBuffer.injectRtpPackets(rtpPackets);
+}
+for await (decodedFrame in jitterBuffer.decodedFrames()) {
+  renderer.render(decodedFrame)
+}
+```
+
+### Example 6: Receive audio with custom codec (WASM) and existing jitter buffer
+
+```javascript
+const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
+const depacketizer = new CustomDepacketizer();
+const decoder = new CustomDecoder();
+const packetizer = new CustomL16Packetizer();
+const rtpReceiveStream = await rtpReceiver.replaceReceiveStreams()[0];
+rtpReceiveStream.onrtpreceived = () => {
+  const rtpPackets = rtpReceiveStream.readReceivedRtp();
+  const encodedFrames = depacketizer.depacketize(rtpPackets);
+  const decodedFrames = decoder.decode(encodedFrames);
+  for (rtpPackets of packetizer.toL16(decodedFrames)) {
+    rtpReceiveStream.receiveRtp(rtpPackets);
+  }
+}
+```
+
+### Example 7: Send and packetize with WebCodecs
+
+```javascript
+const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
+const source = new CustomSource();
+const packetizer = new CustomPacketizer();
+const rtpSendStream = await rtpSender.replaceSendStreams()[0];
+const encoder = new VideoEncoder({
+  output: (chunk) => {
+    let rtpPackets = packetizer.packetize(chunk);
+    for packet in rtpPackets {
+      rtpSendStream.sendRtp(rtpPackets);
+    }
+  },
+  ...
+});
+for await (const rawFrame of source.frames()) {
+  encoder.configure({
+    ...
+    latencyMode: "realtime",
+    tuning: {
+      bitrate: rtpSendStream.allocatedBandwidth;
+      ...
+    }
+  });
+  encoder.encode(rawFrame);
+}
+```
+
+### Example 8: Receive with custom codec (WASM) and jitter buffer
+
+```javascript
+const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
+const jitterBuffer = new CustomJitterBuffer();
+const renderer = new CustomRenderer();
+const rtpReceiveStream = await rtpReceiver.replaceReceiveStreams()[0];
+const decoder = new VideoDecoder({
+  output: (chunk) => {
+    renderer.render(chunk);
+  },
+  ...
+  
+});
+rtpReceiveStream.onrtpreceived = () => {
+  const rtpPackets = rtpReceiveStream.readReceivedRtp();
+  jitterBuffer.injectRtpPackets(rtpPackets);
+}
+for await (encodedFrame in jitterBuffer.encodedFrames()) {
+  decoder.decode(endcodedFrame)
+}
+```
+
+### Example 9: Receive audio with custom codec (WASM) and existing jitter buffer
+
+```javascript
+const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
+const depacketizer = new CustomDepacketizer();
+const packetizer = new CustomL16Packetizer();
+const rtpReceiveStream = await rtpReceiver.replaceReceiveStreams()[0];
+const decoder = new AudioDecoder({
+  output: (chunk) => {
+    const rtpPackets = packetizer.toL16(chunk);
+    for packet in rtpPackets {
+      rtpRecieveStream.receiveRtp(rtpPackets);
+    }
+  },
+  ...
+});
+rtpReceiveStream.onrtpreceived = () => {
+  const rtp = rtpReceiveStream.readReceivedRtp();
+  const encodedFrames = depacketizer.depacketize(rtp);
+  decoder.decode(encodedFrames);
+}
+```
+
+### Example 10: Send custom FEC
+
+```javascript
+// TODO: Negotiate headerExtensionCalculator.uri in SDP
+const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
+const fecGenerator = new CustomFecGenerator();
+const rtpSendStream = await rtpSender.replaceSendStreams()[0];
+rtpSendStream.onpacketizedrtp = () => {
+  const rtpPackets = rtpSendStream.readPacketizedRtp();
+  const fecPackets = fecGenerator.generate(rtpPackets)
+  for (const fecPacket of fecPackets) {
+    rtpSendStream.sendRtp(fecPacket)
+  }
+};
+```
+
+
+### Example 11: Receive custom FEC
+
+```javascript
+// TODO: Negotiate headerExtensionProcessor.uri in SDP
+const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
+const fecProcessor = new CustomFecProcessor();
+const rtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];
+rtpReceiveStream.onreceivedrtp = () => {
+  const fecPackets = rtpSendStream.readPacketizedRtp();
+  const rtpPackets = fecProcessor.process(fecPackets)
+  for (const rtpPacket of rtpPackets) {
+    rtpReceiveStream.receiveRtp(rtpPacket);
+  }
+}
+```
+
+
+### Example 12: Custom bitrate allocation
 ```javascript
 const [pc, rtpTransport] = await setupPeerConnectionWithRtpSender();
 setInterval(() => {
