@@ -376,7 +376,7 @@ setInterval(() => {
 }, 1000);
 ```
 
-## Example 4: Receive with BYOB
+## Example 13: Receive with BYOB
 ```javascript
 const [pc, videoRtpReceiver] = await setupPeerConnectionWithRtpReceiver();  // Custom
 const videoRtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];  // Custom
@@ -390,13 +390,14 @@ videoRtpReceiveStream.onrtpreceived = () => {
 };
 ```
 
-## Example 5: Packetize with BYOB
+## Example 14: Packetize with BYOB
 ```javascript
 const [pc, videoRtpSender] = await setupPeerConnectionWithRtpSender();  // Custom
 const videoRtpSendStream = await videoRtpSender.replaceSendStreams()[0];
 
 // Simplified illustration of packetization using views into an existing ArrayBuffer.
 // NOTE: Only an illustration, not at all like an actual packetization algorithm!
+const packetByteLen = 1000;
 function packetizeEncodedFrame(frameArrayBuffer) {
   for (let byteIdx = 0; byteIdx < frameArrayBuffer.size; byteIdx += packetByteLen) {
     let packetPayloadView = new Uint8Array(frameArrayBuffer, byteIdx, packetByteLen);
