@@ -395,8 +395,8 @@ videoRtpReceiveStream.onrtpreceived = () => {
 const [pc, videoRtpSender] = await setupPeerConnectionWithRtpSender();  // Custom
 const videoRtpSendStream = await videoRtpSender.replaceSendStreams()[0];
 
-// Simplified illustration of packetization.
-const packetByteLen = 1000;
+// Simplified illustration of packetization using views into an existing ArrayBuffer.
+// NOTE: Only an illustration, not at all like an actual packetization algorithm!
 function packetizeEncodedFrame(frameArrayBuffer) {
   for (let byteIdx = 0; byteIdx < frameArrayBuffer.size; byteIdx += packetByteLen) {
     let packetPayloadView = new Uint8Array(frameArrayBuffer, byteIdx, packetByteLen);
