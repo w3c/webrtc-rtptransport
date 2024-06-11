@@ -140,7 +140,7 @@ interface RtpReceiveStream {
   readonly attribute sequence<unsigned long> rtxSsrcs;
 
   attribute EventHandler onreceivedrtp;
-  sequence<RtpPacket> readReceivedRtp(long maxNumberOfPackets);
+  sequence<RtpPacket> readReceivedRtp(optional long maxNumberOfPackets);
 
   void receiveRtp(RtpPacket packet)
 }

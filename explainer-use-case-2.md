@@ -32,11 +32,11 @@ dictionary RtpSendOptions {
 }
 
 interface RtpSendResult {
-  readonly attribute RtpSent sent?;
+  readonly attribute SentRtp sent?;
   readonly attribute RtpUnsentReason unsent?;
 }
 
-interface RtpSent {
+interface SentRtp {
   readonly attribute DOMHighResTimeStamp time;
 
   // Can be correlated with acks
@@ -59,15 +59,17 @@ dictionary RTCConfiguration {
 }
 
 partial interface RtpTransport {
-  attribute EventHandler onrtpsent;  // RtpSent
-  attribute EventHandler onrtpacksreceived;  // RtpAcks
+  attribute EventHandler onsentrtp;  // Use readSendRtp
+  attribute EventHandler onreceivedrtpacks;  // Use readReceivedRtpAcks
   // Means "when doing bitrate allocation and rate control, don't use more than this"
   attribute unsigned long customMaxBandwidth;
   // Means "make each packet smaller by this much so I can put custom stuff in each packet"
   attribute unsigned long customPerPacketOverhead;
   
   attribute EventHandler onpacketizedrtpavailable;  // No payload.  Call readPacketizedRtp
-  sequence<RtpPacket> readPacketizedRtp(maxNumberOfPackets);
+  sequence<RtpPacket> readPacketizedRtp(optional long maxNumberOfPackets);
+  sequence<RtpAcks> readReceivedRtpAcks(optional long maxNumber);
+  sequence<SentRtp> readSentRtp(optional long maxNumber);
 }
 
 // RFC 8888 or Transport-cc feedback
@@ -79,7 +81,7 @@ interface RtpAcks {
 }
 
 interface RtpAck {
-  // Correlated with RtpSent.ackId
+  // Correlated with SentRtp.ackId
   readonly attribute unsigned long long ackId; 
   readonly attribute unsigned long long remoteReceiveTimestamp;
 }
@@ -101,18 +103,21 @@ enum ExplicitCongestionNotification {
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
 const estimator = createBandwidthEstimator();  // Custom
-rtpTransport.onrtpsent = (rtpSent) => {
-    if (rtpSent.ackId) {
-        estimator.rememberRtpSent(rtpSent);
+rtpTransport.onsentrtp = () => {
+    for (const sentRtp of rtpTransport.readSentRtp()) {
+      if (sentRtpPacket.ackId) {
+          estimator.rememberSendRtp(sendRtpPacket);
+      }
     }
 }
-rtpTransport.onrtpacksreceived = (rtpAcks) => {
-    for (const rtpAck in rtpAcks.acks) {
-        const bwe = estimator.processReceivedAcks(rtpAck);
-        rtpTransport.customMaxBandwidth = bwe;
+rtpTransport.onreceivedrtpacks = () => {
+    for (const rtpAcks in rtpTransport.readReceivedRtpAcks()) {
+      for (const rtpAck in rtpAcks.acks) {
+          const bwe = estimator.processReceivedAcks(rtpAck);
+          rtpTransport.customMaxBandwidth = bwe;
+      }
     }
 }
-
 ```
 
 ## Example 2: Custom Pacing and Probing
@@ -127,9 +132,9 @@ rtpTransport.onpacketizedrtpavailable = () => {
 }
 while (true) {
     const [rtpSender, packet, sendTime] = await pacer.dequeue();  // Custom
-    const rtpSent = rtpSender.sendRtp(packet, {sendTime: sendTime});
+    const sendRtp = rtpSender.sendRtp(packet, {sendTime: sendTime});
     (async () => {
-        pacer.handleSent(await rtpSent);
+        pacer.handleSentRtp(await sendRtp);
     })();
 }
 ```
