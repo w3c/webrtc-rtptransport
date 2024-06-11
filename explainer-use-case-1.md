@@ -48,7 +48,10 @@ interface RtpPacket {
   readonly attribute unsigned long ssrc;
   readonly attribute sequence<unsigned long> csrcs;
   readonly attribute sequence<RtpHeaderExtension> headerExtensions;
-  readonly attribute ArrayBuffer payload;
+
+  // Write payload to the specified (Shared-)ArrayBuffer/ArrayBufferView,
+  // allowing for BYOB.
+  undefined copyPayloadTo(AllowSharedBufferSource destination);
 
   // OPTIONAL: Duplicate with header extensions, but conveniently parsed
   readonly attribute DOMString? mid;
@@ -67,7 +70,7 @@ interface RtpPacket {
 interface RtpHeaderExtension {
   constructor(required RtpHeaderExtensionInit);
   readonly attribute DOMString uri;
-  readonly attribute ArrayBuffer value;
+  undefined copyValueTo(AllowSharedBufferSource destination);
 }
 
 dictionary RtpPacketInit {
@@ -77,7 +80,7 @@ dictionary RtpPacketInit {
   sequence<unsigned long> csrcs = [];
   // Cannot be MID, RID, or congestion control sequence number
   sequence<RtpHeaderExtensionInit> headerExtensions = [];
-  required ArrayBuffer payload;
+  required AllowSharedBufferSource payload;
 
   // Convenience for adding to headerExtensions
   octet audioLevel;
@@ -86,7 +89,7 @@ dictionary RtpPacketInit {
 
 dictionary RtpHeaderExtensionInit {
   required DOMString uri;
-  required ArrayBuffer value;
+  required AllowSharedBufferSource value;
 }
 
 ```
@@ -126,9 +129,11 @@ interface RtpSendStream {
   attribute EventHandler onpacketizedrtp;
   sequence<RtpPacket> readPacketizedRtp(long maxNumberOfPackets);
 
+  // Takes a synchronous copy of packet.payload and packet.headerExtensions[*].value,
+  // allowing the underlying buffers to be reused immediately.
   void sendRtp(RtpPacket packet);
   
-// Amount allocated by the browser
+  // Amount allocated by the browser
   readonly attribute unsigned long allocatedBandwidth;
 }
 
@@ -369,6 +374,37 @@ setInterval(() => {
     rtpSender.setParameters(parameters);  
   }
 }, 1000);
+```
+
+## Example 13: Receive with BYOB
+```javascript
+const [pc, videoRtpReceiver] = await setupPeerConnectionWithRtpReceiver();  // Custom
+const videoRtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];  // Custom
+const buffer = new ArrayBuffer(100000);
+videoRtpReceiveStream.onrtpreceived = () => {
+  const videoRtpPackets = videoRtpReceiveStream.readReceivedRtp(10);
+  for (const videoRtpPacket of videoRtpPackets) {
+    videoRtpPacket.copyPayloadTo(buffer);
+    depacketizeIntoJitterBuffer(videoRtpPacket.sequenceNumber, videoRtpPacket.marker, buffer);  // Custom
+  }
+};
+```
+
+## Example 14: Packetize with BYOB
+```javascript
+const [pc, videoRtpSender] = await setupPeerConnectionWithRtpSender();  // Custom
+const videoRtpSendStream = await videoRtpSender.replaceSendStreams()[0];
+
+// Simplified illustration of packetization using views into an existing ArrayBuffer.
+// NOTE: Only an illustration, not at all like an actual packetization algorithm!
+const packetByteLen = 1000;
+function packetizeEncodedFrame(frameArrayBuffer) {
+  for (let byteIdx = 0; byteIdx < frameArrayBuffer.size; byteIdx += packetByteLen) {
+    let packetPayloadView = new Uint8Array(frameArrayBuffer, byteIdx, packetByteLen);
+    videoRtpSendStream.sendRtp({payload: packetPayloadView, makePacketMetadata().../* Custom */});
+  }
+}
+
 ```
 
 
