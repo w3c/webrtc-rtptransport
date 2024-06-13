@@ -95,7 +95,7 @@ dictionary RtpHeaderExtensionInit {
 ```javascript
 partial interface PeerConnection {
   // There may be an RtpTransport with no RtpSenders and no RtpReceivers.
-  readonly attribute RtpTransport rtpTransport;
+  readonly attribute RtpTransport? rtpTransport;
 }
 partial interface RtpSender {
   // shared between RtpSenders in the same BUNDLE group
