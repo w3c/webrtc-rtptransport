@@ -34,123 +34,6 @@ Complexities of sending and receiving RTP other than these requirements are stil
 particular Pacing of sent packets on the wire, inclusion of padding to support bandwidth probing, and RTP Sequence
 Numbering taking into account such padding. 
 
-## API Outline 
-
-### RtpPacket, RtcpPacket
-
-```javascript
-interface RtpPacket {
-  constructor(required RtpPacketInit);
-  readonly attribute bool marker;
-  readonly attribute octet payloadType;
-  readonly attribute unsigned short sequenceNumber;
-  readonly attribute unsigned long timestamp;
-  readonly attribute unsigned long ssrc;
-  readonly attribute sequence<unsigned long> csrcs;
-  readonly attribute sequence<RtpHeaderExtension> headerExtensions;
-
-  // Write payload to the specified (Shared-)ArrayBuffer/ArrayBufferView,
-  // allowing for BYOB.
-  undefined copyPayloadTo(AllowSharedBufferSource destination);
-
-  // OPTIONAL: Duplicate with header extensions, but conveniently parsed
-  readonly attribute DOMString? mid;
-  readonly attribute DOMString? rid;
-  attribute octet? audioLevel;  
-  attribute octet? videoRotation;
-  readonly attribute unsigned long long? remoteSendTimestamp;
-
-  // OPTIONAL: Extra information that may be useful to know
-  readonly attribute DOMHighResTimeStamp receivedTime;
-  readonly attribute unsigned long sequenceNumberRolloverCount;
-
-  void setHeaderExtension(RtpHeaderExtension);
-}
-
-interface RtpHeaderExtension {
-  constructor(required RtpHeaderExtensionInit);
-  readonly attribute DOMString uri;
-  undefined copyValueTo(AllowSharedBufferSource destination);
-}
-
-dictionary RtpPacketInit {
-  bool marker = false;
-  required octet payloadType;
-  required unsigned long timestamp;
-  sequence<unsigned long> csrcs = [];
-  // Cannot be MID, RID, or congestion control sequence number
-  sequence<RtpHeaderExtensionInit> headerExtensions = [];
-  required AllowSharedBufferSource payload;
-
-  // Convenience for adding to headerExtensions
-  octet audioLevel;
-  octet videoRotation;
-}
-
-dictionary RtpHeaderExtensionInit {
-  required DOMString uri;
-  required AllowSharedBufferSource value;
-}
-
-```
-### RTCPeerConnection, RTCRtpSender, RTCRtpReceiver Extensions
-
-```javascript
-partial interface PeerConnection {
-  // There may be an RtpTransport with no RtpSenders and no RtpReceivers.
-  readonly attribute RtpTransport? rtpTransport;
-}
-partial interface RtpSender {
-  // shared between RtpSenders in the same BUNDLE group
-  readonly attribute RtpTransport? rtpTransport;
-  Promise<sequence<RtpSendStream>> replaceSendStreams();
-}
-partial interface RtpReceiver {
-  // shared between RtpSenders in the same BUNDLE group
-  readonly attribute RtpTransport? rtpTransport;
-  Promise<sequence<RtpReceiveStream>> replaceReceiveStreams();
-}
-
-interface RtpTransport {
-  Promise<RtpSendStream> addRtpSendStream(RtpSendStreamInit);
-  Promise<RtpReceiveStream> addRtpReceiveStream(RtpReceiveStreamInit);
-  readonly attribute unsigned long bandwidthEstimate;  // bps
-  readonly attribute unsigned long allocatedBandwidth;  // bps
-  attribute unsigned long customAllocatedBandwidth;  // writable
-}
-
-[Exposed=(Window,Worker), Transferable]
-interface RtpSendStream {
-  readonly attribute DOMString mid?;  // Shared among many RtpSendStreams
-  readonly attribute DOMString rid?;  // Unique to RtpSendStream (scoped to MID)
-  readonly attribute unsigned long ssrc;
-  readonly attribute unsigned long rtxSsrc;
-
-  attribute EventHandler onpacketizedrtp;
-  sequence<RtpPacket> readPacketizedRtp(long maxNumberOfPackets);
-
-  // Takes a synchronous copy of packet.payload and packet.headerExtensions[*].value,
-  // allowing the underlying buffers to be reused immediately.
-  void sendRtp(RtpPacket packet);
-  
-  // Amount allocated by the browser
-  readonly attribute unsigned long allocatedBandwidth;
-}
-
-[Exposed=(Window,Worker), Transferable]
-interface RtpReceiveStream {
-  readonly attribute DOMString mid?;  // Shared among many RtpReceivetreams
-  readonly attribute DOMString rid?;  // Unique to RtpReceiveStream (scoped to MID)
-  readonly attribute sequence<unsigned long> ssrcs;
-  readonly attribute sequence<unsigned long> rtxSsrcs;
-
-  attribute EventHandler onreceivedrtp;
-  sequence<RtpPacket> readReceivedRtp(long maxNumberOfPackets);
-
-  void receiveRtp(RtpPacket packet)
-}
-```
-
 ## Examples
 
 ### Example 1: Send customized RTP header extension (audio level)
@@ -169,14 +52,14 @@ rtpSendStream.onpacketizedrtp = () => {
 ### Example 2: Send custom RTP header extension
 
 ```javascript
-// TODO: Negotiate headerExtensionCalculator.uri in SDP
+// TODO: Negotiate headerExtensionCalculator.id in SDP
 const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const headerExtensionGenerator = new CustomHeaderExtensionGenerator();
 const rtpSendStream = await rtpSender.replaceSendStreams()[0];
 rtpSendStream.onpacketizedrtp = () => {
   for (const rtpPacket of rtpSendStream.readPacketizedRtp()) {
     rtpPacket.setHeaderExtension({
-      uri: headerExtensionGenerator.uri,
+      id: headerExtensionGenerator.id,
       value: headerExtensionGenerator.generate(rtpPacket),
     });
     rtpSendStream.sendRtp(rtpPacket)
@@ -187,14 +70,14 @@ rtpSendStream.onpacketizedrtp = () => {
 ### Example 3: Receive custom RTP header extension
 
 ```javascript
-// TODO: Negotiate headerExtensionProcessor.uri in SDP
+// TODO: Negotiate headerExtensionProcessor.id in SDP
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const headerExtensionProcessor = new CustomHeaderExtensionProcessor();
 const rtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];
 rtpReceiveStream.onreceivedrtp = () => {
   for (const rtpPacket of rtpReceiveStream.readReceivedRtp()) {
     for (const headerExtension of rtpPacket.headerExtensions) {
-      if (headerExtension.uri == headerExtensionProcessor.uri) {
+      if (headerExtension.id == headerExtensionProcessor.id) {
         headerExtensionProcessor.process(headerExtension.value);
       }
     }
@@ -333,7 +216,7 @@ rtpReceiveStream.onrtpreceived = () => {
 ### Example 10: Send custom FEC
 
 ```javascript
-// TODO: Negotiate headerExtensionCalculator.uri in SDP
+// TODO: Negotiate headerExtensionCalculator.id in SDP
 const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const fecGenerator = new CustomFecGenerator();
 const rtpSendStream = await rtpSender.replaceSendStreams()[0];
@@ -350,7 +233,7 @@ rtpSendStream.onpacketizedrtp = () => {
 ### Example 11: Receive custom FEC
 
 ```javascript
-// TODO: Negotiate headerExtensionProcessor.uri in SDP
+// TODO: Negotiate headerExtensionProcessor.id in SDP
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const fecProcessor = new CustomFecProcessor();
 const rtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];
