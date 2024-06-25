@@ -44,7 +44,8 @@ const levelGenerator = new CustomAudioLevelCalculator();
 const rtpSendStream = await rtpSender.replaceSendStreams()[0];
 rtpSendStream.onpacketizedrtp = () => {
   const rtpPacket = rtpSendStream.readPacketizedRtp();
-  rtpPacket.audioLevel = levelGenerator.generate(rtpPacket);
+  const audioLevelExtension = levelGenerator.generate(rtpPacket)
+  rtpPacket.headerExtensions.push(audioLevelExtension);
   rtpSendStream.sendRtp(rtpPacket);
 };
 ```
