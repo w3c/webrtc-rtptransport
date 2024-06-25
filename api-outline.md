@@ -119,7 +119,6 @@ interface RTCRtpSendStream {
   readonly attribute DOMString mid?;  // Shared among many RTCRtpSendStreams
   readonly attribute DOMString rid?;  // Unique to RTCRtpSendStream (scoped to MID)
   readonly attribute unsigned long ssrc;
-  readonly attribute unsigned long rtxSsrc;
 
   attribute EventHandler onpacketizedrtp;
   sequence<RTCRtpPacket> readPacketizedRtp(long maxNumberOfPackets);
@@ -159,7 +158,6 @@ interface RTCRtpReceiveStream {
   readonly attribute DOMString mid?;  // Shared among many RTCRtpReceivetreams
   readonly attribute DOMString rid?;  // Unique to RTCRtpReceiveStream (scoped to MID)
   readonly attribute sequence<unsigned long> ssrcs;
-  readonly attribute sequence<unsigned long> rtxSsrcs;
 
   attribute EventHandler onreceivedrtp;
   sequence<RTCRtpPacket> readReceivedRtp(long maxNumberOfPackets);
