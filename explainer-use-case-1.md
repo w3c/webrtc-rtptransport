@@ -18,14 +18,14 @@ Custom packetization/depacketization enables applications to do things such as:
 - Observe incoming packets
 - Receive packets using a custom jitter buffer implementation
 - Use WebCodecs for encode or decode, implement packetization/depacketization, a custom jitter buffer, and custom FEC
-- Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
+- Obtain a bandwidth estimate from RTCRtpTransport, do bitrate allocation, and set bitrates of RTCRtpSenders
 
 ## API requirements
 
 Enable applications to do custom packetization/depacketization by enabling them to:
 
-- Send RTP packets for a particular RtpSender with an RTP timestamp and RTP payload chosen by the application.
-- Receive RTP packets for a particular RtpReceiver and prevent the browser from further processing them.
+- Send RTP packets for a particular RTCRtpSender with an RTP timestamp and RTP payload chosen by the application.
+- Receive RTP packets for a particular RTCRtpReceiver and prevent the browser from further processing them.
 - Know what bitrates the browser has already allocate to send.
 - Know what bitrate can be sent in addition to what the browser has already allocated to send.
 - Cause the browser to allocate less to send, leaving more bitrate available to the application to send.

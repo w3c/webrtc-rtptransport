@@ -1,15 +1,15 @@
 # API Outline 
 
 ```javascript
-interface RtpPacket {
-  constructor(required RtpPacketInit);
+interface RTCRtpPacket {
+  constructor(required RTCRtpPacketInit);
   readonly attribute bool marker;
   readonly attribute octet payloadType;
   readonly attribute unsigned short sequenceNumber;
   readonly attribute unsigned long timestamp;
   readonly attribute unsigned long ssrc;
   readonly attribute sequence<unsigned long> csrcs;
-  readonly attribute sequence<RtpHeaderExtension> headerExtensions;
+  readonly attribute sequence<RTCRtpHeaderExtension> headerExtensions;
 
   // Write payload to the specified (Shared-)ArrayBuffer/ArrayBufferView,
   // allowing for BYOB.
@@ -19,38 +19,38 @@ interface RtpPacket {
   readonly attribute DOMHighResTimeStamp receivedTime;
   readonly attribute unsigned long sequenceNumberRolloverCount;
 
-  void setHeaderExtension(RtpHeaderExtension);
+  void setHeaderExtension(RTCRtpHeaderExtension);
 }
 
-interface RtpHeaderExtension {
-  constructor(required RtpHeaderExtensionInit);
+interface RTCRtpHeaderExtension {
+  constructor(required RTCRtpHeaderExtensionInit);
   readonly attribute DOMString uri;
   readonly attribute ArrayBuffer value;
   undefined copyValueTo(AllowSharedBufferSource destination);
 }
 
-dictionary RtpPacketInit {
+dictionary RTCRtpPacketInit {
   bool marker = false;
   required octet payloadType;
   required unsigned long timestamp;
   sequence<unsigned long> csrcs = [];
   // Cannot be MID, RID, or congestion control sequence number
-  sequence<RtpHeaderExtensionInit> headerExtensions = [];
+  sequence<RTCRtpHeaderExtensionInit> headerExtensions = [];
   required AllowSharedBufferSource payload;
 }
 
-dictionary RtpHeaderExtensionInit {
+dictionary RTCRtpHeaderExtensionInit {
   required DOMString uri;
   required AllowSharedBufferSource value;
 }
 
 ```
-### PeerConnection, RtpSendStream, RtpReceiveStream Extensions
+### RTCPeerConnection, RTCRtpSendStream, RTCRtpReceiveStream Extensions
 
 ```javascript
-partial interface PeerConnection {
+partial interface RTCPeerConnection {
   // There may be an RtpTransport with no RtpSenders and no RtpReceivers.
-  readonly attribute RtpTransport? rtpTransport;
+  readonly attribute RTCRtpTransport? rtpTransport;
 }
 
 // Add this to RTCConfiguration
@@ -62,25 +62,25 @@ dictionary RTCConfiguration {
   bool customPacer;
 }
 
-partial interface RtpSender {
-  // shared between RtpSenders in the same BUNDLE group
-  readonly attribute RtpTransport? rtpTransport;
-  Promise<sequence<RtpSendStream>> replaceSendStreams();
+partial interface RTCRtpSender {
+  // shared between RTCRtpSenders in the same BUNDLE group
+  readonly attribute RTCRtpTransport? rtpTransport;
+  Promise<sequence<RTCRtpSendStream>> replaceSendStreams();
 }
 
-partial interface RtpReceiver {
-  // shared between RtpSenders in the same BUNDLE group
-  readonly attribute RtpTransport? rtpTransport;
-  Promise<sequence<RtpReceiveStream>> replaceReceiveStreams();
+partial interface RTCRtpReceiver {
+  // shared between RTCRtpSenders in the same BUNDLE group
+  readonly attribute RTCRtpTransport? rtpTransport;
+  Promise<sequence<RTCRtpReceiveStream>> replaceReceiveStreams();
 }
 
-interface RtpTransport {
-  Promise<RtpSendStream> addRtpSendStream(RtpSendStreamInit);
-  Promise<RtpReceiveStream> addRtpReceiveStream(RtpReceiveStreamInit);
+interface RTCRtpTransport {
+  Promise<RTCRtpSendStream> addRtpSendStream(RTCRtpSendStreamInit);
+  Promise<RTCRtpReceiveStream> addRtpReceiveStream(RTCRtpReceiveStreamInit);
   attribute EventHandler onrtpsent;  // RtpSent
   attribute EventHandler onrtpacksreceived;  // RtpAcks
   attribute EventHandler onpacketizedrtpavailable;  // No payload. Call readPacketizedRtp
-  sequence<RtpPacket> readPacketizedRtp(maxNumberOfPackets);
+  sequence<RTCRtpPacket> readPacketizedRtp(maxNumberOfPackets);
 
   readonly attribute unsigned long bandwidthEstimate;  // bps
   readonly attribute unsigned long allocatedBandwidth;  // bps
@@ -92,21 +92,21 @@ interface RtpTransport {
 }
 
 // RFC 8888 or Transport-cc feedback
-interface RtpAcks {
-  readonly attribute sequence<RtpAck> acks;
+interface RTCRtpAcks {
+  readonly attribute sequence<RTCRtpAck> acks;
   readonly attribute unsigned long long remoteSendTimestamp;
   readonly attribute DOMHighResTimeStamp receivedTime;
-  readonly attribute ExplicitCongestionNotification explicitCongestionNotification;  // AKA "ECN"
+  readonly attribute RTCExplicitCongestionNotification explicitCongestionNotification;  // AKA "ECN"
 }
 
-interface RtpAck {
+interface RTCRtpAck {
   // Correlated with RtpSent.ackId
   readonly attribute unsigned long long ackId; 
   readonly attribute unsigned long long remoteReceiveTimestamp;
 }
 
 // See RFC 3991 and RFC 3168
-enum ExplicitCongestionNotification {
+enum RTCExplicitCongestionNotification {
   // ECT = ECN-Capable Transport
   "unset",  // AKA "Not-ECT";  Bits: 00
   "scalable-congestion-not-experienced",  // AKA "ECT(1)" or "Scalable" or "L4S" ; Bits: 01
@@ -115,29 +115,29 @@ enum ExplicitCongestionNotification {
 }
 
 [Exposed=(Window,Worker), Transferable]
-interface RtpSendStream {
-  readonly attribute DOMString mid?;  // Shared among many RtpSendStreams
-  readonly attribute DOMString rid?;  // Unique to RtpSendStream (scoped to MID)
+interface RTCRtpSendStream {
+  readonly attribute DOMString mid?;  // Shared among many RTCRtpSendStreams
+  readonly attribute DOMString rid?;  // Unique to RTCRtpSendStream (scoped to MID)
   readonly attribute unsigned long ssrc;
   readonly attribute unsigned long rtxSsrc;
 
   attribute EventHandler onpacketizedrtp;
-  sequence<RtpPacket> readPacketizedRtp(long maxNumberOfPackets);
+  sequence<RTCRtpPacket> readPacketizedRtp(long maxNumberOfPackets);
 
   // https://github.com/w3c/webrtc-rtptransport/issues/32
-  void sendRtp(RtpPacket packet);
-  Promise<RtpSendResult> sendRtp(RtpPacketInit packet, RtpSendOptions options);
+  void sendRtp(RTCRtpPacket packet);
+  Promise<RTCRtpSendResult> sendRtp(RTCRtpPacketInit packet, RTCRtpSendOptions options);
   
   // Amount allocated by the browser
   readonly attribute unsigned long allocatedBandwidth;
 }
 
-interface RtpSendResult {
-  readonly attribute RtpSent sent?;
-  readonly attribute RtpUnsentReason unsent?;
+interface RTCRtpSendResult {
+  readonly attribute RTCRtpSent sent?;
+  readonly attribute RTCRtpUnsentReason unsent?;
 }
 
-interface RtpSent {
+interface RTCRtpSent {
   readonly attribute DOMHighResTimeStamp time;
 
   // Can be correlated with acks
@@ -145,25 +145,25 @@ interface RtpSent {
   readonly attribute unsigned long long size;
 }
 
-enum RtpUnsentReason {
+enum RTCRtpUnsentReason {
   "overuse",
   "transport-unavailable",
 };
 
-dictionary RtpSendOptions {
+dictionary RTCRtpSendOptions {
   DOMHighResTimeStamp sendTime;
 }
 
 [Exposed=(Window,Worker), Transferable]
-interface RtpReceiveStream {
-  readonly attribute DOMString mid?;  // Shared among many RtpReceivetreams
-  readonly attribute DOMString rid?;  // Unique to RtpReceiveStream (scoped to MID)
+interface RTCRtpReceiveStream {
+  readonly attribute DOMString mid?;  // Shared among many RTCRtpReceivetreams
+  readonly attribute DOMString rid?;  // Unique to RTCRtpReceiveStream (scoped to MID)
   readonly attribute sequence<unsigned long> ssrcs;
   readonly attribute sequence<unsigned long> rtxSsrcs;
 
   attribute EventHandler onreceivedrtp;
-  sequence<RtpPacket> readReceivedRtp(long maxNumberOfPackets);
+  sequence<RTCRtpPacket> readReceivedRtp(long maxNumberOfPackets);
 
-  void receiveRtp(RtpPacket packet)
+  void receiveRtp(RTCRtpPacket packet)
 }
 ```
