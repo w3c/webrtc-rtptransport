@@ -77,10 +77,17 @@ partial interface RTCRtpReceiver {
 interface RTCRtpTransport {
   Promise<RTCRtpSendStream> addRtpSendStream(RTCRtpSendStreamInit);
   Promise<RTCRtpReceiveStream> addRtpReceiveStream(RTCRtpReceiveStreamInit);
-  attribute EventHandler onrtpsent;  // RtpSent
-  attribute EventHandler onrtpacksreceived;  // RtpAcks
+
   attribute EventHandler onpacketizedrtpavailable;  // No payload. Call readPacketizedRtp
   sequence<RTCRtpPacket> readPacketizedRtp(maxNumberOfPackets);
+
+  attribute EventHandler onsentrtp;  // No payload. Use readSentRtp
+  // Batch interface to read SentRtp notifications.
+  sequence<SentRtp> readSentRtp(long maxCount);
+
+  attribute EventHandler onreceivedrtpacks;  // No payload. Use readReceivedRtpAcks
+  // Batch interface to read RtpAcks as an alternative to onrtpacksreceived.
+  sequence<RtpAcks> readReceivedRtpAcks(long maxCount);
 
   readonly attribute unsigned long bandwidthEstimate;  // bps
   readonly attribute unsigned long allocatedBandwidth;  // bps
