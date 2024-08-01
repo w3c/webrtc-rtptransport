@@ -264,12 +264,12 @@ setInterval(() => {
 ```javascript
 const [pc, videoRtpReceiver] = await setupPeerConnectionWithRtpReceiver();  // Custom
 const videoRtpReceiveStream = await videoRtpReceiver.replaceReceiveStreams()[0];  // Custom
-const buffer = new ArrayBuffer(100000);
 videoRtpReceiveStream.onrtpreceived = () => {
   const videoRtpPackets = videoRtpReceiveStream.readReceivedRtp(10);
   for (const videoRtpPacket of videoRtpPackets) {
-    videoRtpPacket.copyPayloadTo(buffer);
-    depacketizeIntoJitterBuffer(videoRtpPacket.sequenceNumber, videoRtpPacket.marker, buffer);  // Custom
+    const destArrayBufferView = allocateFromBufferPool(videoRtpPacket.payloadByteLength); // Custom memory management
+    videoRtpPacket.copyPayloadTo(destArrayBufferView);
+    depacketizeIntoJitterBuffer(videoRtpPacket.sequenceNumber, videoRtpPacket.marker, destArrayBufferView);  // Custom
   }
 };
 ```
