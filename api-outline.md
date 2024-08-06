@@ -140,6 +140,9 @@ interface RTCRtpSendStream {
   attribute EventHandler onpacketizedrtp;
   sequence<RTCRtpPacket> readPacketizedRtp(long maxNumberOfPackets);
 
+  attribute EventHandler onreceivedrtcpnacks;
+  sequence<RTCRtpNack> readReceivedRtcpNacks(long maxNumberOfPackets);
+
   // https://github.com/w3c/webrtc-rtptransport/issues/32
   void sendRtp(RTCRtpPacket packet);
   Promise<RTCRtpSendResult> sendRtp(RTCRtpPacketInit packet, RTCRtpSendOptions options);
@@ -168,6 +171,13 @@ enum RTCRtpUnsentReason {
 
 dictionary RTCRtpSendOptions {
   DOMHighResTimeStamp sendTime;
+  // Serializes the first two bytes of the RTP payload as an RTX payload
+  // and sends using the RTX ssrc.
+  bool asRtx;
+}
+
+interface RTCRtcpNack {
+  readonly attribute sequence<unsigned short> sequenceNumbers;
 }
 
 [Exposed=(Window,Worker), Transferable]
@@ -180,6 +190,8 @@ interface RTCRtpReceiveStream {
   attribute EventHandler onreceivedrtp;
   sequence<RTCRtpPacket> readReceivedRtp(long maxNumberOfPackets);
 
-  void receiveRtp(RTCRtpPacket packet)
+  void receiveRtp(RTCRtpPacket packet);
+
+  void sendNack(sequence<unsigned short>);
 }
 ```
