@@ -13,8 +13,10 @@ interface RTCRtpPacket {
   readonly attribute unsigned long paddingBytes;
 
   // Write payload to the specified (Shared-)ArrayBuffer/ArrayBufferView,
-  // allowing for BYOB.
+  // allowing for BYOB. Throws a TypeError if |destination| is smaller than
+  // |payloadByteLength|.
   undefined copyPayloadTo(AllowSharedBufferSource destination);
+  readonly attribute unsigned long payloadByteLength;
 
   // OPTIONAL: Extra information that may be useful to know
   readonly attribute DOMHighResTimeStamp receivedTime;
@@ -26,7 +28,11 @@ interface RTCRtpPacket {
 interface RTCRtpHeaderExtension {
   constructor(required RTCRtpHeaderExtensionInit);
   readonly attribute DOMString uri;
-  readonly attribute ArrayBuffer value;
+  readonly attribute unsigned long valueByteLength;
+
+  // Write the extension's value to the specified (Shared-)ArrayBuffer/ArrayBufferView,
+  // allowing for BYOB. Throws a TypeError if |destination| is smaller than
+  // |valueByteLength|.
   undefined copyValueTo(AllowSharedBufferSource destination);
 }
 
