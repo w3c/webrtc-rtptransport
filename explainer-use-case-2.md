@@ -17,7 +17,7 @@ Applications can do custom bandwidth estimation via:
 - Access to information about when congestion control feedback (ack messages) are received, and per-packet information about when they were received.
 - Access to information used by L4S.
 - Knowledge of when an application packet is not sent, and why.
-- Efficient control of when packets are sent, in order to do custom pacing and probing.
+- Efficient control of when packets are sent and injection of additonal padding packets, in order to do custom pacing and probing.
 
 Applications need to be be able to batch processing to run much less often than per-packet, to reduce overheads in high bandwidth situations, where packets are sent and received thousands of times per second.
 
@@ -57,8 +57,18 @@ rtpTransport.onpacketizedrtpavailable = () => {
   }
 }
 while (true) {
-    const [rtpSender, packet, sendTime] = await pacer.dequeue();  // Custom
-    const rtpSent = rtpSender.sendRtp(packet, {sendTime: sendTime});
+    const [rtpSender, originalPacket, paddingBytes, sendTime] = await pacer.dequeue();  // Custom
+    // Create an RTCRtpPacketInit instance with the desired padding.
+    const packetInit = {
+      originalPacket.marker,
+      originalPacket.payloadType,
+      originalPacket.timestamp,
+      originalPacket.csrcs,
+      originalPacket.headerExtensions,
+      originalPacket.payload,
+      paddingBytes
+    };
+    const rtpSent = rtpSender.sendRtp(packetInit, {sendTime: sendTime});
     (async () => {
         pacer.handleSent(await rtpSent);
     })();

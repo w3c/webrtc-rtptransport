@@ -10,6 +10,7 @@ interface RTCRtpPacket {
   readonly attribute unsigned long ssrc;
   readonly attribute sequence<unsigned long> csrcs;
   readonly attribute sequence<RTCRtpHeaderExtension> headerExtensions;
+  readonly attribute unsigned long paddingBytes;
 
   // Write payload to the specified (Shared-)ArrayBuffer/ArrayBufferView,
   // allowing for BYOB.
@@ -37,6 +38,8 @@ dictionary RTCRtpPacketInit {
   // Cannot be MID, RID, or congestion control sequence number
   sequence<RTCRtpHeaderExtensionInit> headerExtensions = [];
   required AllowSharedBufferSource payload;
+  // Causes padding bit to be set and padding added when serializing if > 0.
+  unsigned long paddingBytes = 0;
 }
 
 dictionary RTCRtpHeaderExtensionInit {
