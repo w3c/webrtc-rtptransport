@@ -8,6 +8,7 @@ interface RTCRtpPacket {
   readonly attribute unsigned short sequenceNumber;
   readonly attribute unsigned long timestamp;
   readonly attribute unsigned long ssrc;
+  readonly attribute DOMString? rid;
   readonly attribute sequence<unsigned long> csrcs;
   readonly attribute sequence<RTCRtpHeaderExtension> headerExtensions;
   readonly attribute unsigned long paddingBytes;
@@ -41,6 +42,7 @@ dictionary RTCRtpPacketInit {
   required octet payloadType;
   required unsigned long timestamp;
   sequence<unsigned long> csrcs = [];
+  DOMString rid;
   // Cannot be MID, RID, or congestion control sequence number
   sequence<RTCRtpHeaderExtensionInit> headerExtensions = [];
   required AllowSharedBufferSource payload;
@@ -74,13 +76,13 @@ dictionary RTCConfiguration {
 partial interface RTCRtpSender {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  Promise<sequence<RTCRtpSendStream>> replaceSendStreams();
+  Promise<RTCRtpSendStream> replaceSendStreams();
 }
 
 partial interface RTCRtpReceiver {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  Promise<sequence<RTCRtpReceiveStream>> replaceReceiveStreams();
+  Promise<RTCRtpReceiveStream> replaceReceiveStreams();
 }
 
 interface RTCRtpTransport {
@@ -130,12 +132,16 @@ enum RTCExplicitCongestionNotification {
   "congestion-experienced" // AKA "CE" or "ECN-marked" or "marked"; Bits: 11
 }
 
-[Exposed=(Window,Worker), Transferable]
-interface RTCRtpSendStream {
-  readonly attribute DOMString mid?;  // Shared among many RTCRtpSendStreams
+dictionary RTCRtpSendStreamLayer {
   readonly attribute DOMString rid?;  // Unique to RTCRtpSendStream (scoped to MID)
   readonly attribute unsigned long ssrc;
   readonly attribute unsigned long rtxSsrc;
+}
+
+[Exposed=(Window,Worker), Transferable]
+interface RTCRtpSendStream {
+  readonly attribute DOMString? mid;
+  readonly sequence<RTCRtpSendStreamLayer> layers;
 
   attribute EventHandler onpacketizedrtp;
   sequence<RTCRtpPacket> readPacketizedRtp(long maxNumberOfPackets);
