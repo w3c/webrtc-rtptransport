@@ -84,9 +84,6 @@ partial interface RTCRtpReceiver {
 }
 
 interface RTCRtpTransport {
-  Promise<RTCRtpSendStream> addRtpSendStream(RTCRtpSendStreamInit);
-  Promise<RTCRtpReceiveStream> addRtpReceiveStream(RTCRtpReceiveStreamInit);
-
   attribute EventHandler onpacketizedrtpavailable;  // No payload. Call readPacketizedRtp
   sequence<RTCRtpPacket> readPacketizedRtp(maxNumberOfPackets);
 
