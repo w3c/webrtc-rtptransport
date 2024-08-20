@@ -104,10 +104,9 @@ rtpTransport.onreceivedrtcp = () => {
 ### Example 2a: Custom NACK (per-stream and "parsed")
 
 ```javascript
-const [pc, rtpTransport, rtpReceiver] = setupPeerConnectionWithRtpTransport();  // Custom
+const [pc, rtpTransport, rtpReceiver] = setupPeerConnectionWithRtpTransport();  // Custom using "customNack: true"
 const nackCalculator = createNackCalculator();  // Custom
 const rtpReceiveStream = await rtpReceiver.replaceReceiveStreams()[0];
-// TODO: How do we disable normal NACK sending?
 rtpReceiveStream.onrtpreceived = () => {
   const rtpPackets = rtpReceiveStream.readReceivedRtp();
   const nackedSequenceNumbers = nackCalaculator.calculateNackedSequenceNumbers(rtpPackets);
@@ -120,9 +119,8 @@ rtpReceiveStream.onrtpreceived = () => {
 ### Example 2b: Custom NACK (per-transport and "parsed")
 
 ```javascript
-const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
+const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom using "customNack: true"
 const nackCalculator = createNackCalculator();  // Custom
-// TODO: How do we disable normal NACK sending?
 // NEW: RtpTransport.onrtpreceived (transport-wide version of RtpReceiveStream.onrtpreceived)
 // CON: Duplicate onrtpreceived (transport-wide and per-stream)
 rtpTransport.onrtpreceived = () => {
@@ -139,9 +137,8 @@ rtpTransport.onrtpreceived = () => {
 ### Example 2c: Custom NACK (per-transport and "unparsed")
 
 ```javascript
-const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
+const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom using "customNack: true"
 const nackCalculator = createNackCalculator();  // Custom
-// TODO: How do we disable normal NACK sending?
 // NEW: RtpTransport.onrtpreceived (transport-wide version of RtpReceiveStream.onrtpreceived)
 // CON: Duplicate onrtpreceived (transport-wide and per-stream)
 rtpTransport.onrtpreceived = () => {
@@ -160,4 +157,4 @@ rtpTransport.onrtpreceived = () => {
 
 ### Example: Custom RTX payload
 
-TODO
+TODO: Use onpacketizedrtcpavailable/readPacketizedRtcp?

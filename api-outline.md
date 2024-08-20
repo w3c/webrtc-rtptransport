@@ -44,6 +44,10 @@ dictionary RTCRtpHeaderExtensionInit {
   required AllowSharedBufferSource value;
 }
 
+interface RTCRtcpPacket {
+  readonly attribute sequence<RTCRtcpNack> nacks;
+}
+
 ```
 ### RTCPeerConnection, RTCRtpSendStream, RTCRtpReceiveStream Extensions
 
@@ -60,6 +64,11 @@ dictionary RTCConfiguration {
   // and I will send them."
   // TODO: Think of a better name
   bool customPacer;
+  // Means "continue to encode and packetize RTCP NACK, but don't send them.
+  // Instead give them to me via onpacketizedrtcpavailable/readPacketizedRtcp
+  // and I will send them."
+  // TODO: Think of a better name
+  bool customNack;
 }
 
 partial interface RTCRtpSender {
@@ -81,6 +90,8 @@ interface RTCRtpTransport {
   attribute EventHandler onrtpacksreceived;  // RtpAcks
   attribute EventHandler onpacketizedrtpavailable;  // No payload. Call readPacketizedRtp
   sequence<RTCRtpPacket> readPacketizedRtp(maxNumberOfPackets);
+  attribute EventHandler onpacketizedrtcpavailable;  // No payload. Call readPacketizedRtcp
+  sequence<RTCRtcpPacket> readPacketizedRtcp(maxNumberOfPackets);
 
   readonly attribute unsigned long bandwidthEstimate;  // bps
   readonly attribute unsigned long allocatedBandwidth;  // bps
@@ -125,7 +136,7 @@ interface RTCRtpSendStream {
   sequence<RTCRtpPacket> readPacketizedRtp(long maxNumberOfPackets);
 
   attribute EventHandler onreceivedrtcpnacks;
-  sequence<RTCRtpNack> readReceivedRtcpNacks(long maxNumberOfPackets);
+  sequence<RTCRtcpNack> readReceivedRtcpNacks(long maxNumberOfPackets);
 
   // https://github.com/w3c/webrtc-rtptransport/issues/32
   void sendRtp(RTCRtpPacket packet);
