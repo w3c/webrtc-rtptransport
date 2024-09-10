@@ -27,4 +27,4 @@ See the [explainer](https://github.com/w3c/webrtc-rtptransport/blob/main/explain
 
 See the [Custom Packetization Use Case ](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer-use-case-1.md) for some API info.
 
-See the [proposed spec]().
+See the [API outline ](https://github.com/w3c/webrtc-rtptransport/blob/main/api-outline.md)
