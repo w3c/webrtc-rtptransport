@@ -58,12 +58,10 @@ encrypted and congestion-controlled communication.
 
 ## Key use-cases
 
-WebRTC-RtpTransport can be used to implement the following WebRTC Extended Use Cases: 
+WebRTC-RtpTransport can be used to implement the following use cases: 
 
-- [Section 2.3](https://www.w3.org/TR/webrtc-nv-use-cases/#videoconferencing*): Video Conferencing with a Central Server
-- [Section 3.2.1](https://www.w3.org/TR/webrtc-nv-use-cases/#game-streaming): Game streaming
-- [Section 3.2.2](https://www.w3.org/TR/webrtc-nv-use-cases/#auction): Low latency Broadcast with Fanout
-- [Section 3.5](https://www.w3.org/TR/webrtc-nv-use-cases/#vr*): Virtual Reality Gaming
+- [Use Case 1](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer-use-case-1.md): Custom Packetization
+- [Use Case 2](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer-use-case-2.md): Custom Congestion Control
 
 WebRTC-RtpTransport enables these use cases by enabling applications to:
 
