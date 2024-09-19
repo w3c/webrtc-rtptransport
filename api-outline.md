@@ -109,7 +109,7 @@ interface RTCRtpTransportProcessor {
   sequence<SentRtp> readSentRtp(long maxCount);
 
   attribute EventHandler onreceivedrtpacks;  // No payload. Use readReceivedRtpAcks
-  // Batch interface to read RtpAcks notications.
+  // Batch interface to read RtpAcks notifications.
   sequence<RtpAcks> readReceivedRtpAcks(long maxCount);
 
   readonly attribute unsigned long bandwidthEstimate;  // bps
