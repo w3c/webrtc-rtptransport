@@ -256,7 +256,7 @@ rtpTransport.createProcessor(new Worker("worker.js"));
 // worker.js
 onrtcrtptransportprocessor = (e) => {
   setInterval(() => {
-    for (const [rtpSender, bitrate] of allocateBitrates(e.processor.bandwidthEstimate)) {  // Custom
+    for (const [rtpSender, bitrate] of allocateBitrates(e.processor.bandwidthEstimate)) {  // Custom bandwidth allocation
       const parameters = rtpSender.getParameters();
       parameters.encodings[0].maxBitrate = bitrate;
       rtpSender.setParameters(parameters);  
