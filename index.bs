@@ -415,15 +415,673 @@ specification uses that specification and terminology.
 
 Terminology definitions go here.
 
-# RTCRtpTransport Interface # {#rtptransport}
+# <dfn interface>RTCRtpTransport</dfn> Interface # {#rtptransport}
 
-## Internal slots ## {#internal-slots}
+<pre class="idl">
+[Exposed=(Window)]
+interface RTCRtpTransport {
+  attribute EventHandler onpacketizedrtpavailable;
+  sequence&lt;RTCRtpPacket&gt; readPacketizedRtp(unsigned long maxNumberOfPackets);
 
-## Constructor ## {#constructor}
+  attribute EventHandler onsentrtp;
+  // Batch interface to read RTCRtpSent notifications.
+  sequence&lt;RTCRtpSent&gt; readSentRtp(long maxCount);
 
-## Attributes ## {#attributes}
+  attribute EventHandler onreceivedrtpacks;  // No payload. Use readReceivedRtpAcks
+  // Batch interface to read RTCRtpAcks as an alternative to onrtpacksreceived.
+  sequence&lt;RTCRtpAcks&gt; readReceivedRtpAcks(long maxCount);
 
-## Methods ## {#methods}
+  readonly attribute unsigned long bandwidthEstimate;  // bps
+  readonly attribute unsigned long allocatedBandwidth;  // bps
+  attribute unsigned long customAllocatedBandwidth;  // writable
+  // Means "when doing bitrate allocation and rate control, don't use more than this"
+  attribute unsigned long customMaxBandwidth;
+  // Means "make each packet smaller by this much so I can put custom stuff in each packet"
+  attribute unsigned long customPerPacketOverhead;
+};
+
+</pre>
+
+## Attributes ## {#rtptransport-attributes}
+
+<dl dfn-for="RTCRtpTransport">
+    <dt>
+        <dfn attribute>onpacketizedrtpavailable</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>onsentrtp</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>onreceivedrtpacks</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>bandwidthEstimate</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>allocatedBandwidth</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>customAllocatedBandwidth</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>customMaxBandwidth</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>customPerPacketOverhead</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## Methods ## {#rtptransport-methods}
+
+<dl dfn-for="RTCRtpTransport">
+    <dt>
+        <dfn method>readPacketizedRtp(maxNumberOfPackets)</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>readSentRtp(long maxCount)</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>readReceivedRtpAcks(long maxCount)</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+# Objects
+
+## <dfn interface>RTCRtpPacket</dfn> Interface ## {#rtppacket}
+
+<pre class="idl">
+[Exposed=(Window)]
+interface RTCRtpPacket {
+  constructor(RTCRtpPacketInit init);
+  readonly attribute boolean marker;
+  readonly attribute octet payloadType;
+  readonly attribute unsigned short sequenceNumber;
+  readonly attribute unsigned long timestamp;
+  readonly attribute unsigned long ssrc;
+  sequence&lt;unsigned long&gt; getCsrcs();
+  sequence&lt;RTCRtpHeaderExtension&gt; getHeaderExtensions();
+  readonly attribute unsigned long paddingBytes;
+
+  // Write payload to the specified (Shared-)ArrayBuffer/ArrayBufferView,
+  // allowing for BYOB. Throws a TypeError if |destination| is smaller than
+  // |payloadByteLength|.
+  undefined copyPayloadTo(AllowSharedBufferSource destination);
+  readonly attribute unsigned long payloadByteLength;
+
+  // OPTIONAL: Extra information that may be useful to know
+  readonly attribute DOMHighResTimeStamp receivedTime;
+  readonly attribute unsigned long sequenceNumberRolloverCount;
+
+  undefined setHeaderExtension(RTCRtpHeaderExtension headerExtension);
+};
+</pre>
+
+<dl dfn-for="RTCRtpPacket">
+    <dt>
+        <dfn attribute>marker</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>payloadType</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>sequenceNumber</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>timestamp</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>ssrc</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>paddingBytes</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>payloadByteLength</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>receivedTime</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>sequenceNumberRolloverCount</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+<dl dfn-for="RTCRtpPacket">
+    <dt>
+        <dfn method>getCsrcs()</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>getHeaderExtensions()</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>copyValueTo(AllowSharedBufferSource destination)</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>setHeaderExtension(RTCRtpHeaderExtension headerExtension)</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## <dfn interface>RTCRtpHeaderExtension</dfn> Interface ## {#rtpheaderextension}
+
+<pre class="idl">
+[Exposed=(Window)]
+interface RTCRtpHeaderExtension {
+  constructor(RTCRtpHeaderExtensionInit init);
+  readonly attribute DOMString uri;
+  readonly attribute unsigned long valueByteLength;
+
+  // Write the extension's value to the specified (Shared-)ArrayBuffer/ArrayBufferView,
+  // allowing for BYOB. Throws a TypeError if |destination| is smaller than
+  // |valueByteLength|.
+  undefined copyValueTo(AllowSharedBufferSource destination);
+};
+</pre>
+
+<dl dfn-for="RTCRtpHeaderExtension">
+    <dt>
+        <dfn attribute>uri</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>valueByteLength</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+<dl dfn-for="RTCRtpHeaderExtension">
+    <dt>
+        <dfn method>copyValueTo(AllowSharedBufferSource destination)</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## <dfn dictionary>RTCRtpHeaderExtensionInit</dfn> Dictionary ## {#rtpheaderextensioninit}
+
+<pre class="idl">
+dictionary RTCRtpHeaderExtensionInit {
+  required DOMString uri;
+  required AllowSharedBufferSource value;
+};
+</pre>
+
+<dl dfn-for="RTCRtpHeaderExtensionInit">
+    <dt>
+        <dfn dict-member>uri</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn dict-member>value</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl> 
+
+## <dfn dictionary>RTCRtpPacketInit</dfn> Dictionary ## {#rtppacketinit}
+
+<pre class="idl">
+dictionary RTCRtpPacketInit {
+  boolean marker = false;
+  required octet payloadType;
+  required unsigned long timestamp;
+  sequence&lt;unsigned long&gt; csrcs = [];
+  // Cannot be MID, RID, or congestion control sequence number
+  sequence&lt;RTCRtpHeaderExtensionInit&gt; headerExtensions = [];
+  required AllowSharedBufferSource payload;
+  // Causes padding bit to be set and padding added when serializing if &gt; 0.
+  unsigned long paddingBytes = 0;
+};
+</pre>
+
+<dl dfn-for="RTCRtpPacketInit">
+    <dt>
+        <dfn dict-member>marker</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn dict-member>payloadType</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn dict-member>timestamp</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn dict-member>csrcs</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn dict-member>headerExtensions</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn dict-member>payload</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn dict-member>paddingBytes</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## <dfn interface>RTCRtpAcks</dfn> Interface ## {#rtpacks}
+
+<pre class="idl">
+[Exposed=(Window)]
+interface RTCRtpAcks {
+  sequence&lt;RTCRtpAck&gt; getAcks();
+  readonly attribute unsigned long long remoteSendTimestamp;
+  readonly attribute DOMHighResTimeStamp receivedTime;
+  readonly attribute RTCExplicitCongestionNotification explicitCongestionNotification;  // AKA "ECN"
+};
+</pre>
+
+<dl dfn-for="RTCRtpAcks">
+    <dt>
+        <dfn method>getAcks()</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>remoteSendTimestamp</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>receivedTime</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>explicitCongestionNotification</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## <dfn interface>RTCRtpAck</dfn> ## {#rtpack}
+
+<pre class="idl">
+[Exposed=(Window)]
+interface RTCRtpAck {
+  // Correlated with RtpSent.ackId
+  readonly attribute unsigned long long ackId; 
+  readonly attribute unsigned long long remoteReceiveTimestamp;
+};
+</pre>
+
+<dl dfn-for="RTCRtpAck">
+    <dt>
+        <dfn attribute>ackId</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>remoteReceiveTimestamp</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## <dfn enum>RTCExplicitCongestionNotification</dfn> ## {#explicitcongestionnotification}
+
+<pre class="idl">
+enum RTCExplicitCongestionNotification {
+  // ECT = ECN-Capable Transport
+  "unset",  // AKA "Not-ECT";  Bits: 00
+  "scalable-congestion-not-experienced",  // AKA "ECT(1)" or "Scalable" or "L4S" ; Bits: 01
+  "classic-congestion-not-experienced", // AKA "ECT(0)" or "Classic" or "not L4S"; Bits: 10
+  "congestion-experienced" // AKA "CE" or "ECN-marked" or "marked"; Bits: 11
+};
+</pre>
+
+# <dfn interface>RTCRtpSendStream</dfn> Interface # {#rtpsentstream}
+
+<pre class="idl">
+[Exposed=(Window,Worker), Transferable]
+interface RTCRtpSendStream {
+  readonly attribute DOMString? mid;
+  readonly attribute DOMString? rid;
+  readonly attribute unsigned long ssrc;
+  readonly attribute unsigned long rtxSsrc;
+
+  attribute EventHandler onpacketizedrtp;
+  sequence&lt;RTCRtpPacket&gt; readPacketizedRtp(long maxNumberOfPackets);
+
+  // https://github.com/w3c/webrtc-rtptransport/issues/32
+  undefined sendRtp(RTCRtpPacket packet);
+  Promise&lt;RTCRtpSendResult&gt; sendRtp(RTCRtpPacketInit packetInit, optional RTCRtpSendOptions options = {});
+
+  // Amount allocated by the browser
+  readonly attribute unsigned long allocatedBandwidth;
+};
+</pre>
+
+<dl dfn-for="RTCRtpSendStream">
+    <dt>
+        <dfn attribute>mid</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>rid</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>ssrc</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>rtxSsrc</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>onpacketizedrtp</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+<dl dfn-for="RTCRtpSendStream">
+    <dt>
+        <dfn method>readPacketizedRtp(long maxNumberOfPackets)</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>sendRtp(RTCRtpPacket packet)</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>sendRtp(RTCRtpPacketInit packetInit, optional RTCRtpSendOptions options = {})</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## <dfn interface>RTCRtpSendResult</dfn> Interface ## {#rtpsentresult}
+
+<pre class="idl">
+[Exposed=(Window)]
+interface RTCRtpSendResult {
+  readonly attribute RTCRtpSent? sent;
+  readonly attribute RTCRtpUnsentReason? unsent;
+};
+</pre>
+
+<dl dfn-for="RTCRtpSendResult">
+    <dt>
+        <dfn attribute>sent</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>unsent</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## <dfn interface>RTCRtpSent</dfn> Interface ## {#rtpsent}
+
+<pre class="idl">
+[Exposed=(Window)]
+interface RTCRtpSent {
+  readonly attribute DOMHighResTimeStamp time;
+
+  // Can be correlated with acks
+  readonly attribute unsigned long long? ackId;
+  readonly attribute unsigned long long size;
+};
+</pre>
+
+<dl dfn-for="RTCRtpSent">
+    <dt>
+        <dfn attribute>time</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>ackId</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>size</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## <dfn enum>RTCRtpUnsentReason</dfn> Enum ## {#RTCRtpUnsentReason}
+
+<pre class="idl">
+enum RTCRtpUnsentReason {
+  "overuse",
+  "transport-unavailable",
+};
+</pre>
+
+## <dfn dictionary>RTCRtpSendOptions</dfn> Dictionary ## {#rtpsendoptions}
+
+<pre class="idl">
+dictionary RTCRtpSendOptions {
+  DOMHighResTimeStamp sendTime;
+};
+</pre>
+
+<dl dfn-for="RTCRtpSendOptions">
+    <dt>
+        <dfn dict-member>sendTime</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+# <dfn interface>RTCRtpReceiveStream</dfn> Interface # {#rtpreceivestream}
+
+<pre class="idl">
+[Exposed=(Window,Worker), Transferable]
+interface RTCRtpReceiveStream {
+  readonly attribute DOMString? mid;  // Shared among many RTCRtpReceivetreams
+  readonly attribute DOMString? rid;  // Unique to RTCRtpReceiveStream (scoped to MID)
+  sequence&lt;unsigned long&gt; getSsrcs();
+  sequence&lt;unsigned long&gt; getRtxSsrcs();
+
+  attribute EventHandler onreceivedrtp;
+  sequence&lt;RTCRtpPacket&gt; readReceivedRtp(long maxNumberOfPackets);
+
+  undefined receiveRtp(RTCRtpPacket packet);
+};
+</pre>
+
+<dl dfn-for="RTCRtpReceiveStream">
+    <dt>
+        <dfn attribute>mid</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>rid</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn attribute>onreceivedrtp</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+<dl dfn-for="RTCRtpReceiveStream">
+    <dt>
+        <dfn method>readReceivedRtp(long maxNumberOfPackets)</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>receiveRtp(RTCRtpPacket packet)</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>getSsrcs()</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>getRtxSsrcs()</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+# Interface Extensions # {#interface-extensions}
+
+## RTCPeerConnection Interface Extensions ## {#rtcpeerconnection-extensions}
+
+<pre class="idl">
+partial interface RTCPeerConnection {
+  // There may be an RtpTransport with no RtpSenders and no RtpReceivers.
+  readonly attribute RTCRtpTransport? rtpTransport;
+};
+</pre>
+
+<dl dfn-for="RTCPeerConnection">
+    <dt>
+        <dfn attribute>rtpTransport</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## RTCRtpSender Interface Extensions ## {#rtcrtpsender-extensions}
+
+<pre class="idl">
+partial interface RTCRtpSender {
+  // shared between RTCRtpSenders in the same BUNDLE group
+  readonly attribute RTCRtpTransport? rtpTransport;
+  Promise&lt;sequence&lt;RTCRtpSendStream&gt;&gt; replaceSendStreams();
+};
+</pre>
+
+<dl dfn-for="RTCRtpSender">
+    <dt>
+        <dfn attribute>rtpTransport</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>replaceSendStreams()</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## RTCConfiguration Dictionary Extensions ## {#rtcconfiguration-extensions}
+
+<pre class="idl">
+partial dictionary RTCConfiguration {
+  // Means "continue to encode and packetize packets, but don't send them.
+  // Instead give them to me via onpacketizedrtpavailable/readPacketizedRtp
+  // and I will send them."
+  // TODO: Think of a better name
+  boolean customPacer;
+};
+</pre>
+
+<dl dfn-for="RTCConfiguration">
+    <dt>
+        <dfn dict-member>customPacer</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+## RTCRtpReceiver Interface Extensions ## {#rtcrtpreceiver-extensions}
+
+<pre class="idl">
+partial interface RTCRtpReceiver {
+  // shared between RTCRtpSenders in the same BUNDLE group
+  readonly attribute RTCRtpTransport? rtpTransport;
+  Promise&lt;sequence&lt;RTCRtpReceiveStream&gt;&gt; replaceReceiveStreams();
+};
+</pre>
+
+<dl dfn-for="RTCRtpReceiver">
+    <dt>
+        <dfn attribute>rtpTransport</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>replaceReceiveStreams()</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
 
 # Privacy and security considerations # {#privacy}
 
