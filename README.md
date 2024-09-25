@@ -21,10 +21,12 @@ The WebRTC-RtpTransport API enables web applications to support:
 - Custom RTCP message timing
 - RTP forwarding
   
-# Samples
+# For more information
 
 See the [explainer](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer.md) for more info.
 
 See the [Custom Packetization Use Case ](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer-use-case-1.md) for some API info.
 
 See the [API outline ](https://github.com/w3c/webrtc-rtptransport/blob/main/api-outline.md)
+
+See the [Specification](https://w3c.github.io/webrtc-rtptransport/)
