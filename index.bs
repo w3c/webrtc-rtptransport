@@ -9,6 +9,7 @@ TR: https://www.w3.org/TR/webrtc-rtptransport/
 Repository: w3c/webrtc-rtptransport
 URL: https://github.com/w3c/webrtc-rtptransport
 Editor: Peter Thatcher, w3cid 68236, Microsoft Corporation https://www.microsoft.com, pthatcher@microsoft.com
+Editor: Tony Herre, Google https://www.google.com, herre@google.com
 Editor: Bernard Aboba, w3cid 65611, Microsoft Corporation https://www.microsoft.com, bernarda@microsoft.com
 
 Abstract: 
