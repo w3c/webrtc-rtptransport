@@ -12,6 +12,12 @@ interface RTCRtpPacket {
   readonly attribute sequence<RTCRtpHeaderExtension> headerExtensions;
   readonly attribute unsigned long paddingBytes;
 
+  // These are the demuxed values, perhaps derived from SSRC,
+  // not necessarily the value of header extension.
+  // See .headerExtensions for that.
+  readonly attribute DOMString? mid;
+  readonly attribute DOMString? rid;
+
   // Write payload to the specified (Shared-)ArrayBuffer/ArrayBufferView,
   // allowing for BYOB. Throws a TypeError if |destination| is smaller than
   // |payloadByteLength|.
@@ -46,6 +52,11 @@ dictionary RTCRtpPacketInit {
   required AllowSharedBufferSource payload;
   // Causes padding bit to be set and padding added when serializing if > 0.
   unsigned long paddingBytes = 0;
+
+  // These are used for specifiying what MID and RID to use,
+  // and may be sent over the wire as SSRCs, 
+  // not necessarily the value of header extension.
+  readonly attribute DOMString? rid;
 }
 
 dictionary RTCRtpHeaderExtensionInit {
@@ -54,7 +65,7 @@ dictionary RTCRtpHeaderExtensionInit {
 }
 
 ```
-### RTCPeerConnection, RTCRtpSendStream, RTCRtpReceiveStream Extensions
+### RTCPeerConnection, RTCRtpPacketSender, RTCRtpPacketReceiver Extensions
 
 ```javascript
 partial interface RTCPeerConnection {
@@ -74,13 +85,15 @@ dictionary RTCConfiguration {
 partial interface RTCRtpSender {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  Promise<sequence<RTCRtpSendStream>> replaceSendStreams();
+  // TODO: Needs a better name
+  Promise<RTCRtpPacketSender> replacePacketSender();
 }
 
 partial interface RTCRtpReceiver {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  Promise<sequence<RTCRtpReceiveStream>> replaceReceiveStreams();
+  // TODO: Needs a better name
+  Promise<RTCRtpPacketReceiver> replacePacketReceiver();
 }
 
 interface RTCRtpTransport {
@@ -128,11 +141,10 @@ enum RTCExplicitCongestionNotification {
 }
 
 [Exposed=(Window,Worker), Transferable]
-interface RTCRtpSendStream {
-  readonly attribute DOMString mid?;  // Shared among many RTCRtpSendStreams
-  readonly attribute DOMString rid?;  // Unique to RTCRtpSendStream (scoped to MID)
-  readonly attribute unsigned long ssrc;
-  readonly attribute unsigned long rtxSsrc;
+interface RTCRtpPacketSender {
+  readonly attribute DOMString mid?;
+  // TODO: Needs a better name
+  readonly sequence<RTCRtpPacketSenderLayer> layers;
 
   attribute EventHandler onpacketizedrtp;
   sequence<RTCRtpPacket> readPacketizedRtp(long maxNumberOfPackets);
@@ -143,6 +155,13 @@ interface RTCRtpSendStream {
   
   // Amount allocated by the browser
   readonly attribute unsigned long allocatedBandwidth;
+}
+
+// TODO: Needs a better name
+dictionary RTCRtpPacketSenderLayer {
+  readonly attribute DOMString rid?;
+  readonly attribute unsigned long ssrc;
+  readonly attribute unsigned long rtxSsrc;
 }
 
 interface RTCRtpSendResult {
@@ -168,9 +187,8 @@ dictionary RTCRtpSendOptions {
 }
 
 [Exposed=(Window,Worker), Transferable]
-interface RTCRtpReceiveStream {
-  readonly attribute DOMString mid?;  // Shared among many RTCRtpReceivetreams
-  readonly attribute DOMString rid?;  // Unique to RTCRtpReceiveStream (scoped to MID)
+interface RTCRtpPacketReceiver {
+  readonly attribute DOMString mid?;
   readonly attribute sequence<unsigned long> ssrcs;
   readonly attribute sequence<unsigned long> rtxSsrcs;
 
