@@ -41,12 +41,12 @@ Numbering taking into account such padding.
 ```javascript
 const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const levelGenerator = new CustomAudioLevelCalculator();
-const rtpSendStream = await rtpSender.replacePacketSender();
-rtpSendStream.onpacketizedrtp = () => {
-  const rtpPacket = rtpSendStream.readPacketizedRtp();
+const rtpPacketSender = await rtpSender.replacePacketSender();
+rtpPacketSender.onpacketizedrtp = () => {
+  const rtpPacket = rtpPacketSender.readPacketizedRtp();
   const audioLevelExtension = levelGenerator.generate(rtpPacket)
   rtpPacket.headerExtensions.push(audioLevelExtension);
-  rtpSendStream.sendRtp(rtpPacket);
+  rtpPacketSender.sendRtp(rtpPacket);
 };
 ```
 
@@ -56,14 +56,14 @@ rtpSendStream.onpacketizedrtp = () => {
 // TODO: Negotiate headerExtensionCalculator.uri in SDP
 const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const headerExtensionGenerator = new CustomHeaderExtensionGenerator();
-const rtpSendStream = await rtpSender.replacePacketSender();
-rtpSendStream.onpacketizedrtp = () => {
-  for (const rtpPacket of rtpSendStream.readPacketizedRtp()) {
+const rtpPacketSender = await rtpSender.replacePacketSender();
+rtpPacketSender.onpacketizedrtp = () => {
+  for (const rtpPacket of rtpPacketSender.readPacketizedRtp()) {
     rtpPacket.setHeaderExtension({
       uri: headerExtensionGenerator.uri,
       value: headerExtensionGenerator.generate(rtpPacket),
     });
-    rtpSendStream.sendRtp(rtpPacket)
+    rtpPacketSender.sendRtp(rtpPacket)
   }
 };
 ```
@@ -74,15 +74,15 @@ rtpSendStream.onpacketizedrtp = () => {
 // TODO: Negotiate headerExtensionProcessor.uri in SDP
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const headerExtensionProcessor = new CustomHeaderExtensionProcessor();
-const rtpReceiveStream = await videoRtpReceiver.replacePacketReceiver();
-rtpReceiveStream.onreceivedrtp = () => {
-  for (const rtpPacket of rtpReceiveStream.readReceivedRtp()) {
+const rtpPacketReceiver = await videoRtpReceiver.replacePacketReceiver();
+rtpPacketReceiver.onreceivedrtp = () => {
+  for (const rtpPacket of rtpPacketReceiver.readReceivedRtp()) {
     for (const headerExtension of rtpPacket.headerExtensions) {
       if (headerExtension.uri == headerExtensionProcessor.uri) {
         headerExtensionProcessor.process(headerExtension.value);
       }
     }
-    rtpReceiveStream.receiveRtp(rtpPacket);
+    rtpPacketReceiver.receiveRtp(rtpPacket);
   }
 }
 ```
@@ -94,13 +94,13 @@ const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const source = new CustomSource();
 const encoder = new CustomEncoder();
 const packetizer = new CustomPacketizer();
-const rtpSendStream = await rtpSender.replacePacketSender();
+const rtpPacketSender = await rtpSender.replacePacketSender();
 for await (const rawFame in source.frames()) {
-  encoder.setTargetBitrate(rtpSendStream.allocatedBandwidth);
+  encoder.setTargetBitrate(rtpPacketSender.allocatedBandwidth);
   const encodedFrame = encoder.encode(rawFrame);
   const rtpPackets = packetizer.packetize(encodedFrame);
   for (const rtpPacket of rtpPackets) {
-    rtpSendStream.sendRtp(rtpPackets);
+    rtpPacketSender.sendRtp(rtpPackets);
   }
 }
 ```
@@ -111,9 +111,9 @@ for await (const rawFame in source.frames()) {
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const jitterBuffer = new CustomJitterBuffer();
 const renderer = new CustomRenderer();
-const rtpReceiveStream = await rtpReceiver.replacePacketReceiver();
-rtpReceiveStream.onreceivedrtp = () => {
-  const rtpPackets = rtpReceiveStream.readReceivedRtp();
+const rtpPacketReceiver = await rtpReceiver.replacePacketReceiver();
+rtpPacketReceiver.onreceivedrtp = () => {
+  const rtpPackets = rtpPacketReceiver.readReceivedRtp();
   jitterBuffer.injectRtpPackets(rtpPackets);
 }
 for await (decodedFrame in jitterBuffer.decodedFrames()) {
@@ -128,13 +128,13 @@ const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const depacketizer = new CustomDepacketizer();
 const decoder = new CustomDecoder();
 const packetizer = new CustomL16Packetizer();
-const rtpReceiveStream = await rtpReceiver.replacePacketReceiver();
-rtpReceiveStream.onrtpreceived = () => {
-  const rtpPackets = rtpReceiveStream.readReceivedRtp();
+const rtpPacketReceiver = await rtpReceiver.replacePacketReceiver();
+rtpPacketReceiver.onrtpreceived = () => {
+  const rtpPackets = rtpPacketReceiver.readReceivedRtp();
   const encodedFrames = depacketizer.depacketize(rtpPackets);
   const decodedFrames = decoder.decode(encodedFrames);
   for (rtpPackets of packetizer.toL16(decodedFrames)) {
-    rtpReceiveStream.receiveRtp(rtpPackets);
+    rtpPacketReceiver.receiveRtp(rtpPackets);
   }
 }
 ```
@@ -145,12 +145,12 @@ rtpReceiveStream.onrtpreceived = () => {
 const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const source = new CustomSource();
 const packetizer = new CustomPacketizer();
-const rtpSendStream = await rtpSender.replacePacketSender();
+const rtpPacketSender = await rtpSender.replacePacketSender();
 const encoder = new VideoEncoder({
   output: (chunk) => {
     let rtpPackets = packetizer.packetize(chunk);
     for packet in rtpPackets {
-      rtpSendStream.sendRtp(rtpPackets);
+      rtpPacketSender.sendRtp(rtpPackets);
     }
   },
   ...
@@ -160,7 +160,7 @@ for await (const rawFrame of source.frames()) {
     ...
     latencyMode: "realtime",
     tuning: {
-      bitrate: rtpSendStream.allocatedBandwidth;
+      bitrate: rtpPacketSender.allocatedBandwidth;
       ...
     }
   });
@@ -174,7 +174,7 @@ for await (const rawFrame of source.frames()) {
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const jitterBuffer = new CustomJitterBuffer();
 const renderer = new CustomRenderer();
-const rtpReceiveStream = await rtpReceiver.replacePacketReceiver();
+const rtpPacketReceiver = await rtpReceiver.replacePacketReceiver();
 const decoder = new VideoDecoder({
   output: (chunk) => {
     renderer.render(chunk);
@@ -182,8 +182,8 @@ const decoder = new VideoDecoder({
   ...
   
 });
-rtpReceiveStream.onrtpreceived = () => {
-  const rtpPackets = rtpReceiveStream.readReceivedRtp();
+rtpPacketReceiver.onrtpreceived = () => {
+  const rtpPackets = rtpPacketReceiver.readReceivedRtp();
   jitterBuffer.injectRtpPackets(rtpPackets);
 }
 for await (encodedFrame in jitterBuffer.encodedFrames()) {
@@ -197,7 +197,7 @@ for await (encodedFrame in jitterBuffer.encodedFrames()) {
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const depacketizer = new CustomDepacketizer();
 const packetizer = new CustomL16Packetizer();
-const rtpReceiveStream = await rtpReceiver.replacePacketReceiver();
+const rtpPacketReceiver = await rtpReceiver.replacePacketReceiver();
 const decoder = new AudioDecoder({
   output: (chunk) => {
     const rtpPackets = packetizer.toL16(chunk);
@@ -207,8 +207,8 @@ const decoder = new AudioDecoder({
   },
   ...
 });
-rtpReceiveStream.onrtpreceived = () => {
-  const rtp = rtpReceiveStream.readReceivedRtp();
+rtpPacketReceiver.onrtpreceived = () => {
+  const rtp = rtpPacketReceiver.readReceivedRtp();
   const encodedFrames = depacketizer.depacketize(rtp);
   decoder.decode(encodedFrames);
 }
@@ -220,12 +220,12 @@ rtpReceiveStream.onrtpreceived = () => {
 // TODO: Negotiate headerExtensionCalculator.uri in SDP
 const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
 const fecGenerator = new CustomFecGenerator();
-const rtpSendStream = await rtpSender.replacePacketSender();
-rtpSendStream.onpacketizedrtp = () => {
-  const rtpPackets = rtpSendStream.readPacketizedRtp();
+const rtpPacketSender = await rtpSender.replacePacketSender();
+rtpPacketSender.onpacketizedrtp = () => {
+  const rtpPackets = rtpPacketSender.readPacketizedRtp();
   const fecPackets = fecGenerator.generate(rtpPackets)
   for (const fecPacket of fecPackets) {
-    rtpSendStream.sendRtp(fecPacket)
+    rtpPacketSender.sendRtp(fecPacket)
   }
 };
 ```
@@ -237,12 +237,12 @@ rtpSendStream.onpacketizedrtp = () => {
 // TODO: Negotiate headerExtensionProcessor.uri in SDP
 const [pc, rtpReceiver] = await customPeerConnectionWithRtpReceiver();
 const fecProcessor = new CustomFecProcessor();
-const rtpReceiveStream = await videoRtpReceiver.replacePacketReceiver();
-rtpReceiveStream.onreceivedrtp = () => {
-  const fecPackets = rtpSendStream.readPacketizedRtp();
+const rtpPacketReceiver = await videoRtpReceiver.replacePacketReceiver();
+rtpPacketReceiver.onreceivedrtp = () => {
+  const fecPackets = rtpPacketSender.readPacketizedRtp();
   const rtpPackets = fecProcessor.process(fecPackets)
   for (const rtpPacket of rtpPackets) {
-    rtpReceiveStream.receiveRtp(rtpPacket);
+    rtpPacketReceiver.receiveRtp(rtpPacket);
   }
 }
 ```
@@ -263,9 +263,9 @@ setInterval(() => {
 ## Example 13: Receive with BYOB
 ```javascript
 const [pc, videoRtpReceiver] = await setupPeerConnectionWithRtpReceiver();  // Custom
-const videoRtpReceiveStream = await videoRtpReceiver.replacePacketReceiver();  // Custom
-videoRtpReceiveStream.onrtpreceived = () => {
-  const videoRtpPackets = videoRtpReceiveStream.readReceivedRtp(10);
+const rtpPacketReceiver = await videoRtpReceiver.replacePacketReceiver();  // Custom
+rtpPacketReceiver.onrtpreceived = () => {
+  const videoRtpPackets = rtpPacketReceiver.readReceivedRtp(10);
   for (const videoRtpPacket of videoRtpPackets) {
     const destArrayBufferView = allocateFromBufferPool(videoRtpPacket.payloadByteLength); // Custom memory management
     videoRtpPacket.copyPayloadTo(destArrayBufferView);
@@ -277,7 +277,7 @@ videoRtpReceiveStream.onrtpreceived = () => {
 ## Example 14: Packetize with BYOB
 ```javascript
 const [pc, videoRtpSender] = await setupPeerConnectionWithRtpSender();  // Custom
-const videoRtpSendStream = await videoRtpSender.replacePacketSender();
+const rtpPacketSender = await videoRtpSender.replacePacketSender();
 
 // Simplified illustration of packetization using views into an existing ArrayBuffer.
 // NOTE: Only an illustration, not at all like an actual packetization algorithm!
@@ -285,7 +285,7 @@ const packetByteLen = 1000;
 function packetizeEncodedFrame(frameArrayBuffer) {
   for (let byteIdx = 0; byteIdx < frameArrayBuffer.size; byteIdx += packetByteLen) {
     let packetPayloadView = new Uint8Array(frameArrayBuffer, byteIdx, packetByteLen);
-    videoRtpSendStream.sendRtp({payload: packetPayloadView, makePacketMetadata().../* Custom */});
+    rtpPacketSender.sendRtp({payload: packetPayloadView, makePacketMetadata().../* Custom */});
   }
 }
 

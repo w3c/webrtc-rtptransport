@@ -794,11 +794,11 @@ enum RTCExplicitCongestionNotification {
 };
 </pre>
 
-# <dfn interface>RTCRtpSendStream</dfn> Interface # {#rtpsentstream}
+# <dfn interface>RTCRtpPacketSender</dfn> Interface # {#rtpsentstream}
 
 <pre class="idl">
 [Exposed=(Window,Worker), Transferable]
-interface RTCRtpSendStream {
+interface RTCRtpPacketSender {
   readonly attribute DOMString? mid;
   readonly attribute DOMString? rid;
   readonly attribute unsigned long ssrc;
@@ -816,7 +816,7 @@ interface RTCRtpSendStream {
 };
 </pre>
 
-<dl dfn-for="RTCRtpSendStream">
+<dl dfn-for="RTCRtpPacketSender">
     <dt>
         <dfn attribute>mid</dfn>
     </dt>
@@ -844,7 +844,7 @@ interface RTCRtpSendStream {
     </dd>
 </dl>
 
-<dl dfn-for="RTCRtpSendStream">
+<dl dfn-for="RTCRtpPacketSender">
     <dt>
         <dfn method>readPacketizedRtp(long maxNumberOfPackets)</dfn>
     </dt>
@@ -941,13 +941,13 @@ dictionary RTCRtpSendOptions {
     </dd>
 </dl>
 
-# <dfn interface>RTCRtpReceiveStream</dfn> Interface # {#rtpreceivestream}
+# <dfn interface>RTCRtpPacketReceiver</dfn> Interface # {#rtppacketreceiver}
 
 <pre class="idl">
 [Exposed=(Window,Worker), Transferable]
-interface RTCRtpReceiveStream {
-  readonly attribute DOMString? mid;  // Shared among many RTCRtpReceivetreams
-  readonly attribute DOMString? rid;  // Unique to RTCRtpReceiveStream (scoped to MID)
+interface RTCRtpPacketReceiver {
+  readonly attribute DOMString? mid;
+  readonly attribute DOMString? rid;  // Unique to RTCRtpPacketReceiver (scoped to MID)
   sequence&lt;unsigned long&gt; getSsrcs();
   sequence&lt;unsigned long&gt; getRtxSsrcs();
 
@@ -958,7 +958,7 @@ interface RTCRtpReceiveStream {
 };
 </pre>
 
-<dl dfn-for="RTCRtpReceiveStream">
+<dl dfn-for="RTCRtpPacketReceiver">
     <dt>
         <dfn attribute>mid</dfn>
     </dt>
@@ -976,7 +976,7 @@ interface RTCRtpReceiveStream {
     </dd>
 </dl>
 
-<dl dfn-for="RTCRtpReceiveStream">
+<dl dfn-for="RTCRtpPacketReceiver">
     <dt>
         <dfn method>readReceivedRtp(long maxNumberOfPackets)</dfn>
     </dt>
@@ -1024,7 +1024,7 @@ partial interface RTCPeerConnection {
 partial interface RTCRtpSender {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  Promise&lt;sequence&lt;RTCRtpSendStream&gt;&gt; replaceSendStreams();
+  Promise&lt;RTCRtpPacketSender&gt; replacePacketSender();
 };
 </pre>
 
@@ -1035,7 +1035,7 @@ partial interface RTCRtpSender {
     <dd>
     </dd>
     <dt>
-        <dfn method>replaceSendStreams()</dfn>
+        <dfn method>replacePacketSender()</dfn>
     </dt>
     <dd>
     </dd>
@@ -1067,7 +1067,7 @@ partial dictionary RTCConfiguration {
 partial interface RTCRtpReceiver {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  Promise&lt;sequence&lt;RTCRtpReceiveStream&gt;&gt; replaceReceiveStreams();
+  Promise&lt;RTCRtpPacketReceiver&gt; replacePacketReciever();
 };
 </pre>
 
@@ -1078,7 +1078,7 @@ partial interface RTCRtpReceiver {
     <dd>
     </dd>
     <dt>
-        <dfn method>replaceReceiveStreams()</dfn>
+        <dfn method>replacePacketReciever()</dfn>
     </dt>
     <dd>
     </dd>
