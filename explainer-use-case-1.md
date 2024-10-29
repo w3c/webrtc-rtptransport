@@ -260,7 +260,7 @@ setInterval(() => {
 }, 1000);
 ```
 
-## Example 13: Receive with BYOB
+### Example 13: Receive with BYOB
 ```javascript
 const [pc, videoRtpReceiver] = await setupPeerConnectionWithRtpReceiver();  // Custom
 const rtpPacketReceiver = await videoRtpReceiver.replacePacketReceiver();  // Custom
@@ -274,7 +274,7 @@ rtpPacketReceiver.onrtpreceived = () => {
 };
 ```
 
-## Example 14: Packetize with BYOB
+### Example 14: Packetize with BYOB
 ```javascript
 const [pc, videoRtpSender] = await setupPeerConnectionWithRtpSender();  // Custom
 const rtpPacketSender = await videoRtpSender.replacePacketSender();
