@@ -12,9 +12,8 @@ interface RTCRtpPacket {
   readonly attribute sequence<RTCRtpHeaderExtension> headerExtensions;
   readonly attribute unsigned long paddingBytes;
 
-  // These are the demuxed values, perhaps derived from SSRC,
-  // not necessarily the value of header extension.
-  // See .headerExtensions for that.
+  // The MID and RID are possibly inferred by the SSRC,
+  // and do not necessarily represent header extension values.
   readonly attribute DOMString? mid;
   readonly attribute DOMString? rid;
 
@@ -53,9 +52,8 @@ dictionary RTCRtpPacketInit {
   // Causes padding bit to be set and padding added when serializing if > 0.
   unsigned long paddingBytes = 0;
 
-  // These are used for specifiying what MID and RID to use,
-  // and may be sent over the wire as SSRCs, 
-  // not necessarily the value of header extension.
+  // The RID here specifies which "layer" to send with, and what goes over
+  // the wire maybe a specific SSRC, not necessarily a header extension.
   readonly attribute DOMString? rid;
 }
 
@@ -85,14 +83,12 @@ dictionary RTCConfiguration {
 partial interface RTCRtpSender {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  // TODO: Needs a better name
   Promise<RTCRtpPacketSender> replacePacketSender();
 }
 
 partial interface RTCRtpReceiver {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  // TODO: Needs a better name
   Promise<RTCRtpPacketReceiver> replacePacketReceiver();
 }
 
@@ -143,7 +139,8 @@ enum RTCExplicitCongestionNotification {
 [Exposed=(Window,Worker), Transferable]
 interface RTCRtpPacketSender {
   readonly attribute DOMString mid?;
-  // TODO: Needs a better name
+  // The "layers" of an RtpPacketSender correspond to the "encodings" of an RTP transceiver
+  // and are primarily used for simulcast.
   readonly sequence<RTCRtpPacketSenderLayer> layers;
 
   attribute EventHandler onpacketizedrtp;
@@ -157,7 +154,6 @@ interface RTCRtpPacketSender {
   readonly attribute unsigned long allocatedBandwidth;
 }
 
-// TODO: Needs a better name
 dictionary RTCRtpPacketSenderLayer {
   readonly attribute DOMString rid?;
   readonly attribute unsigned long ssrc;
