@@ -251,13 +251,24 @@ rtpPacketReceiver.onreceivedrtp = () => {
 ### Example 12: Custom bitrate allocation
 ```javascript
 const [pc, rtpTransport] = await setupPeerConnectionWithRtpSender();
-setInterval(() => {
-  for (const [rtpSender, bitrate] of allocateBitrates(rtpTransport.bandwidthEstimate)) {  // Custom
+const channel = new MessageChannel();
+channel.port1.onmessage = e => {
+  for (const [rtpSender, bitrate] of allocateBitrates(e.data.bandwidthEstimate)) {
     const parameters = rtpSender.getParameters();
     parameters.encodings[0].maxBitrate = bitrate;
     rtpSender.setParameters(parameters);  
   }
-}, 1000);
+}
+rtpTransport.processorHandle = new RTCRtpTransportProcessorHandle(new Worker("worker.js"), { port : channel.port2 }, [port2]);
+
+// worker.js
+onrtcrtptransportprocessor = (e) => {
+  const processor = e.processor;
+  setInterval(() => {
+    const bandwidthEstimate = processor.bandwidthEstimate;
+    processor.options.port.postMessage({ bandwidthEstimate });
+  }, 1000);
+}
 ```
 
 ## Example 13: Receive with BYOB
