@@ -27,51 +27,62 @@ Applications need to be be able to batch processing to run much less often than 
 
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
-const estimator = createBandwidthEstimator();  // Custom
-rtpTransport.onsentrtp = () => {
-  for (const sentRtp of rtpTransport.readSentRtp(100)) {
-    if (sentRtp.ackId) {
-        estimator.rememberSentRtp(sentRtp);
-    }
-  }
-}
-rtpTransport.onreceivedrtpacks = () => {
-    for (const rtpAcks in rtpTransport.readReceivedRtpAcks(100)) {
-      for (const rtpAck in rtpAcks.acks) {
-          const bwe = estimator.processReceivedAcks(rtpAck);
-          rtpTransport.customMaxBandwidth = bwe;
+rtpTransport.processorHandle = new RTCRtpTransportProcessorHandle(new Worker("worker.js"));
+
+// worker.js
+onrtcrtptransportprocessor = (e) => {
+  const processor = e.processor;
+  const estimator = createBandwidthEstimator();  // Custom
+  processor.onsentrtp = () => {
+    for (const sentRtp of processor.readSentRtp(100)) {
+      if (sentRtp.ackId) {
+          estimator.rememberSentRtp(sentRtp);
       }
     }
+  }
+  processor.onreceivedrtpacks = () => {
+      for (const rtpAcks in processor.readReceivedRtpAcks(100)) {
+        for (const rtpAck in rtpAcks.acks) {
+            const bwe = estimator.processReceivedAcks(rtpAck);
+            processor.customMaxBandwidth = bwe;
+        }
+      }
+  }
 }
-
 ```
 
 ## Example 2: Custom Pacing and Probing
 
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport({customPacer: true});  // Custom
-const pacer = createPacer();  // Custom
-rtpTransport.onpacketizedrtpavailable = () => {
-  for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
-    pacer.enqueue(rtpPacket);
+rtpTransport.processorHandle = new RTCRtpTransportProcessorHandle(new Worker("worker.js"));
+
+// worker.js
+onrtcrtptransportprocessor = (e) => {
+  const processor = e.processor;
+  const pacer = createPacer();  // Custom
+  processor.onpacketizedrtpavailable = () => {
+    for (const rtpPacket in processor.readPacketizedRtp(100)) {
+      pacer.enqueue(rtpPacket);
+    }
   }
-}
-while (true) {
-    const [rtpSender, originalPacket, paddingBytes, sendTime] = await pacer.dequeue();  // Custom
-    // Create an RTCRtpPacketInit instance with the desired padding.
-    const packetInit = {
-      originalPacket.marker,
-      originalPacket.payloadType,
-      originalPacket.timestamp,
-      originalPacket.csrcs,
-      originalPacket.headerExtensions,
-      originalPacket.payload,
-      paddingBytes
-    };
-    const rtpSent = rtpSender.sendRtp(packetInit, {sendTime: sendTime});
-    (async () => {
-        pacer.handleSent(await rtpSent);
-    })();
+  while (true) {
+      const [rtpSender, originalPacket, paddingBytes, sendTime] = await pacer.dequeue();  // Custom
+      // Create an RTCRtpPacketInit instance with the desired padding.
+      const packetInit = {
+        originalPacket.marker,
+        originalPacket.payloadType,
+        originalPacket.timestamp,
+        originalPacket.csrcs,
+        originalPacket.headerExtensions,
+        originalPacket.payload,
+        paddingBytes
+      };
+      const rtpSent = rtpSender.sendRtp(packetInit, {sendTime: sendTime});
+      (async () => {
+          pacer.handleSent(await rtpSent);
+      })();
+  }
 }
 ```
 
@@ -81,23 +92,29 @@ at a controlled frequency.
 
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
-const pacer = createPacer();  // Custom
-rtpTransport.customPacer = true;
+rtpTransport.processorHandle = new RTCRtpTransportProcessorHandle(new Worker("worker.js"));
 
-async function pacePacketBatch() {
-  rtpTransport.onpacketizedrtpavailable = undefined;
-  while(true) {
-    let pendingPackets = rtpTransport.readPacketizedRtp(100);
-    if (pendingPackets.size() == 0) {
-      // No packets available synchronously. Wait for the next available packet.
-      rtpTransport.onpacketizedrtpavailable = pacePacketBatch;
-      return;
+// worker.js
+onrtcrtptransportprocessor = (e) => {
+  const processor = e.processor;
+  const pacer = createPacer();  // Custom
+  processor.customPacer = true;
+
+  async function pacePacketBatch() {
+    processor.onpacketizedrtpavailable = undefined;
+    while(true) {
+      let pendingPackets = processor.readPacketizedRtp(100);
+      if (pendingPackets.size() == 0) {
+        // No packets available synchronously. Wait for the next available packet.
+        processor.onpacketizedrtpavailable = pacePacketBatch;
+        return;
+      }
+      for (const rtpPacket in processor.readPacketizedRtp(100)) {
+        pacer.enqueue(rtpPacket);
+      }
+      // Wait 20ms before processing more packets.
+      await new Promise(resolve => {setTimeout(resolve, 20)});
     }
-    for (const rtpPacket in rtpTransport.readPacketizedRtp(100)) {
-      pacer.enqueue(rtpPacket);
-    }
-    // Wait 20ms before processing more packets.
-    await new Promise(resolve => {setTimeout(resolve, 20)});
   }
 }
 ```
@@ -106,33 +123,38 @@ async function pacePacketBatch() {
 
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
-const estimator = createBandwidthEstimator();  // Custom
+rtpTransport.processorHandle = new RTCRtpTransportProcessorHandle(new Worker("worker.js"));
 
-// Every 100ms, notify the estimator of all RTP packets sent.
-setInterval(() => {
-  // Read all synchronously available rtpSents in batches of 100.
-  while(true) {
-    let sentRtps = rtpTransport.readSentRtp(100);
-    if (sentRtps.length == 0) {
-      break;
-    }
-    sentRtps.forEach((sentRtp) => estimator.rememberRtpSent(sentRtp));
-  }
-}, 100);
+// worker.js
+onrtcrtptransportprocessor = (e) => {
+  const processor = e.processor;
+  const estimator = createBandwidthEstimator();  // Custom
 
-// Every 100ms, notify the estimator of all RTP acks received.
-setInterval(() => {
-  // Read all synchronously available RtpAcks in batches of 100.
-  while(true) {
-    let rtpAcks = rtpTransport.readReceivedRtpAcks(100);
-    if (rtpAcks.length == 0) {
-      break;
+  // Every 100ms, notify the estimator of all RTP packets sent.
+  setInterval(() => {
+    // Read all synchronously available rtpSents in batches of 100.
+    while(true) {
+      let sentRtps = processor.readSentRtp(100);
+      if (sentRtps.length == 0) {
+        break;
+      }
+      sentRtps.forEach((sentRtp) => estimator.rememberRtpSent(sentRtp));
     }
-    rtpAcks.forEach((ack) => estimator.processReceivedAcks(ack));
-  }
-  // Update bitrate estimations now that estimator is up to date.
-  doBitrateAllocationAndUpdateEncoders(estimator);  // Custom
-}, 100);
+  }, 100);
+
+  // Every 100ms, notify the estimator of all RTP acks received.
+  setInterval(() => {
+    // Read all synchronously available RtpAcks in batches of 100.
+    while(true) {
+      let rtpAcks = processor.readReceivedRtpAcks(100);
+      if (rtpAcks.length == 0) {
+        break;
+      }
+      rtpAcks.forEach((ack) => estimator.processReceivedAcks(ack));
+    }
+    // Update bitrate estimations now that estimator is up to date.
+    doBitrateAllocationAndUpdateEncoders(estimator);  // Custom
+  }, 100);
 ```
 
 ## Alternative designs considered
