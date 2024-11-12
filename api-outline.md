@@ -83,13 +83,15 @@ dictionary RTCConfiguration {
 partial interface RTCRtpSender {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  Promise<RTCRtpPacketSender> replacePacketSender();
+  // Will trigger RTCRtpTransportProcessor.onpacketsender event listeners.
+  Promise<undefined> replacePacketSender();
 }
 
 partial interface RTCRtpReceiver {
   // shared between RTCRtpSenders in the same BUNDLE group
   readonly attribute RTCRtpTransport? rtpTransport;
-  Promise<RTCRtpPacketReceiver> replacePacketReceiver();
+  // Will trigger RTCRtpTransportProcessor.onpacketreceiver event listeners.
+  Promise<undefined> replacePacketSender();
 }
 
 [Exposed=Window]
@@ -106,6 +108,9 @@ interface RTCRtpTransportProcessorHandle {
 [Exposed=DedicatedWorker]
 interface RTCRtpTransportProcessor : EventTarget {
   readonly attribute any options;
+
+  attribute EventHandler onpacketsender; // RTCRtpPacketSenderEvent
+  attribute EventHandler onpacketreceiver; // RTCRtpPacketReceiverEvent
 
   attribute EventHandler onpacketizedrtpavailable;  // No payload. Call readPacketizedRtp
   sequence<RTCRtpPacket> readPacketizedRtp(maxNumberOfPackets);
@@ -126,6 +131,16 @@ interface RTCRtpTransportProcessor : EventTarget {
   // Means "make each packet smaller by this much so I can put custom stuff in each packet"
   attribute unsigned long customPerPacketOverhead;
 }
+
+[Exposed=DedicatedWorker]
+interface RTCRtpPacketSenderEvent : Event {
+  readonly attribute RTCRtpPacketSender sender;
+};
+
+[Exposed=DedicatedWorker]
+interface RTCRtpPacketReceiverEvent : Event {
+  readonly attribute RTCRtpPacketReceiver receiver;
+};
 
 [Exposed=DedicatedWorker]
 interface RTCRtpTransportProcessorEvent : Event {
@@ -159,9 +174,8 @@ enum RTCExplicitCongestionNotification {
   "congestion-experienced" // AKA "CE" or "ECN-marked" or "marked"; Bits: 11
 }
 
-[Exposed=(Window,Worker), Transferable]
+[Exposed=DedicatedWorker]
 interface RTCRtpPacketSender {
-  readonly attribute DOMString mid?;
   // The "layers" of an RtpPacketSender correspond to the "encodings" of an RTP transceiver
   // and are primarily used for simulcast.
   readonly sequence<RTCRtpPacketSenderLayer> layers;
@@ -205,9 +219,8 @@ dictionary RTCRtpSendOptions {
   DOMHighResTimeStamp sendTime;
 }
 
-[Exposed=(Window,Worker), Transferable]
+rExposed=DedicatedWorker]
 interface RTCRtpPacketReceiver {
-  readonly attribute DOMString mid?;
   readonly attribute sequence<unsigned long> ssrcs;
   readonly attribute sequence<unsigned long> rtxSsrcs;
 
