@@ -531,8 +531,10 @@ interface RTCRtpPacket {
   attribute unsigned short sequenceNumber;
   attribute unsigned long timestamp;
   attribute unsigned long ssrc;
-  attribute sequence&lt;unsigned long&gt; csrcs;
-  attribute sequence&lt;RTCRtpHeaderExtension&gt; headerExtensions;
+  sequence&lt;unsigned long&gt; getCsrcs();
+  undefined setCsrcs(sequence&lt;unsigned long&gt; csrcs);
+  sequence&lt;RTCRtpHeaderExtension&gt; getHeaderExtensions();
+  undefined setHeaderExtensions(sequence&lt;RTCRtpHeaderExtension&gt; headerExtensions);
   attribute unsigned long paddingBytes;
 
   attribute AllowSharedBufferSource payload;
@@ -570,16 +572,6 @@ interface RTCRtpPacket {
     <dd>
     </dd>
     <dt>
-        <dfn attribute>csrcs</dfn>
-    </dt>
-    <dd>
-    </dd>
-    <dt>
-        <dfn attribute>headerExtensions</dfn>
-    </dt>
-    <dd>
-    </dd>
-    <dt>
         <dfn attribute>paddingBytes</dfn>
     </dt>
     <dd>
@@ -591,6 +583,29 @@ interface RTCRtpPacket {
     </dd>
     <dt>
         <dfn attribute>sequenceNumberRolloverCount</dfn>
+    </dt>
+    <dd>
+    </dd>
+</dl>
+
+<dl dfn-for="RTCRtpPacket">
+    <dt>
+        <dfn method>getCsrcs()</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>setCsrcs(sequence&lt;unsigned long&gt; csrcs)</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>getHeaderExtensions()</dfn>
+    </dt>
+    <dd>
+    </dd>
+    <dt>
+        <dfn method>setHeaderExtensions(sequence&lt;RTCRtpHeaderExtension&gt; headerExtensions)</dfn>
     </dt>
     <dd>
     </dd>
