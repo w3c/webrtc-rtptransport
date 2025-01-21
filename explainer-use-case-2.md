@@ -23,7 +23,7 @@ Applications need to be be able to batch processing to run much less often than 
 
 ## Examples
 
-## Example 1: Custom BWE
+### Example 1: Custom BWE
 
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport();  // Custom
@@ -46,7 +46,7 @@ rtpTransport.onreceivedrtpacks = () => {
 
 ```
 
-## Example 2: Custom Pacing and Probing
+### Example 2: Custom Pacing and Probing
 
 ```javascript
 const [pc, rtpTransport] = setupPeerConnectionWithRtpTransport({customPacer: true});  // Custom
@@ -75,7 +75,7 @@ while (true) {
 }
 ```
 
-## Example 3: Batched pacing
+### Example 3: Batched pacing
 Making use of the synchronous readPacketizedRtp method to only read packets in batches
 at a controlled frequency.
 
