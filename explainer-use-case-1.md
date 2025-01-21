@@ -268,7 +268,7 @@ rtpPacketReceiver.onrtpreceived = () => {
   const videoRtpPackets = rtpPacketReceiver.readReceivedRtp(10);
   for (const videoRtpPacket of videoRtpPackets) {
     const destArrayBufferView = allocateFromBufferPool(videoRtpPacket.payloadByteLength); // Custom memory management
-    videoRtpPacket.copyPayloadTo(destArrayBufferView);
+    destArrayBufferView.set(videoRtpPacket.payload);
     depacketizeIntoJitterBuffer(videoRtpPacket.sequenceNumber, videoRtpPacket.marker, destArrayBufferView);  // Custom
   }
 };
@@ -288,8 +288,46 @@ function packetizeEncodedFrame(frameArrayBuffer) {
     rtpPacketSender.sendRtp({payload: packetPayloadView, makePacketMetadata().../* Custom */});
   }
 }
-
 ```
 
 
-## Alternative designs considered
+## Example 15: Receive with BYOP (Bring Your Own Packets)
+```javascript
+const dstPackets = [];
+for (let i = 0; i < kBatchNumPackets; ++i) {
+  dstPackets.push(new RTCRtpPacket());  // Dummy until written to.
+}
+
+const [pc, videoRtpReceiver] = await setupPeerConnectionWithRtpReceiver();  // Custom
+const rtpPacketReceiver = await videoRtpReceiver.replacePacketReceiver();  // Custom
+rtpPacketReceiver.onrtpreceived = () => {
+  const packetsReceived = rtpPacketReceiver.readReceivedRtp(dstPackets);
+  for (let i = 0; i < packetsReceived; ++i) {
+    rtpPacketReceiver.receiveRtp(dstPackets[i]);
+  }
+};
+```
+
+
+### Example 16: Send with BYOP (Bring Your Own Packets)
+
+```javascript
+const dstPackets = [];
+for (let i = 0; i < kBatchNumPackets; ++i) {
+  dstPackets.push(new RTCRtpPacket());  // Dummy until written to.
+}
+
+const [pc, rtpSender] = await customPeerConnectionWithRtpSender();
+const source = new CustomSource();
+const encoder = new CustomEncoder();
+const packetizer = new CustomPacketizer();
+const rtpPacketSender = await rtpSender.replacePacketSender();
+for await (const rawFame in source.frames()) {
+  encoder.setTargetBitrate(rtpPacketSender.allocatedBandwidth);
+  const encodedFrame = encoder.encode(rawFrame);
+  const packetsToSend = packetizer.packetize(encodedFrame, dstPackets);
+  for (let i = 0; i < packetsToSend; ++i) {
+    rtpPacketSender.sendRtp(dstPackets[i]);
+  }
+}
+```
