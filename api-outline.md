@@ -92,16 +92,33 @@ partial interface RTCRtpReceiver {
   Promise<RTCRtpPacketReceiver> replacePacketReceiver();
 }
 
+[Exposed=Window]
 interface RTCRtpTransport {
+  Promise<RTCRtpSendStream> addRtpSendStream(RTCRtpSendStreamInit);
+  Promise<RTCRtpReceiveStream> addRtpReceiveStream(RTCRtpReceiveStreamInit);
+
+  // Causes RTCRtpTransportProcessorEvent to be fired on |worker|.
+  createProcessor(Worker worker,  optional any options, optional sequence<object> transfer);
+}
+
+[Exposed=DedicatedWorker]
+interface RTCRtpTransportProcessor {
+  // Options passed to createProcessor() triggering this to be created.
+  readonly attribute any options;
+
   attribute EventHandler onpacketizedrtpavailable;  // No payload. Call readPacketizedRtp
+  // Batch interface to read packetized RTP for senders which don't have associated
+  // RTCRtpSendStreams. Only provided if the PeerConnection was created with
+  // { customPacer: true }.
   sequence<RTCRtpPacket> readPacketizedRtp(maxNumberOfPackets);
 
   attribute EventHandler onsentrtp;  // No payload. Use readSentRtp
   // Batch interface to read SentRtp notifications.
+  // Only provided if the PeerConnection was created with { customPacer: true }.
   sequence<SentRtp> readSentRtp(long maxCount);
 
   attribute EventHandler onreceivedrtpacks;  // No payload. Use readReceivedRtpAcks
-  // Batch interface to read RtpAcks as an alternative to onrtpacksreceived.
+  // Batch interface to read RtpAcks notifications.
   sequence<RtpAcks> readReceivedRtpAcks(long maxCount);
 
   readonly attribute unsigned long bandwidthEstimate;  // bps
@@ -112,6 +129,16 @@ interface RTCRtpTransport {
   // Means "make each packet smaller by this much so I can put custom stuff in each packet"
   attribute unsigned long customPerPacketOverhead;
 }
+
+[Exposed=DedicatedWorker]
+interface RTCRtpTransportProcessorEvent : Event {
+    readonly attribute RTCRtpTransportProcessor processor;
+};
+
+partial interface DedicatedWorkerGlobalScope {
+  // Receives instances of RTCRtpTransportProcessorEvent.
+  attribute EventHandler onrtcrtptransportprocessor;
+};
 
 // RFC 8888 or Transport-cc feedback
 interface RTCRtpAcks {
