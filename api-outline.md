@@ -92,7 +92,21 @@ partial interface RTCRtpReceiver {
   Promise<RTCRtpPacketReceiver> replacePacketReceiver();
 }
 
+[Exposed=Window]
 interface RTCRtpTransport {
+  attribute RTCRtpTransportProcessorHandle? processorHandle;
+}
+
+[Exposed=Window]
+interface RTCRtpTransportProcessorHandle {
+  // Causes RTCRtpTransportProcessorEvent to be fired on |worker|.
+  constructor(Worker worker,  optional any options, optional sequence<object> transfer);
+};
+
+[Exposed=DedicatedWorker]
+interface RTCRtpTransportProcessor : EventTarget {
+  readonly attribute any options;
+
   attribute EventHandler onpacketizedrtpavailable;  // No payload. Call readPacketizedRtp
   sequence<RTCRtpPacket> readPacketizedRtp(maxNumberOfPackets);
 
@@ -112,6 +126,15 @@ interface RTCRtpTransport {
   // Means "make each packet smaller by this much so I can put custom stuff in each packet"
   attribute unsigned long customPerPacketOverhead;
 }
+
+[Exposed=DedicatedWorker]
+interface RTCRtpTransportProcessorEvent : Event {
+  readonly attribute RTCRtpTransportProcessor processor;
+};
+
+partial interface DedicatedWorkerGlobalScope {
+    attribute EventHandler onrtcrtptransportprocessor;
+};
 
 // RFC 8888 or Transport-cc feedback
 interface RTCRtpAcks {
