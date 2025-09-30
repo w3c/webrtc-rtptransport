@@ -1,4 +1,4 @@
-# WebRTC-RtpTransport Explainer
+# RTCTransport Explainer
 
 ## Problem and Motivation
 
@@ -32,11 +32,11 @@ web because they lack encryption, congestion control, and a mechanism for
 consent to send (to prevent DDoS attacks).
 
 To enable new use cases, we think it would be useful to provide an API to
-send and receive RTP and RTCP packets. 
+send and receive packets. 
 
 ## Goals
 
-The WebRTC-RtpTransport API enables web applications to support: 
+The RTCTransport API enables web applications to support: 
 
 - Custom payloads (ML-based audio codecs)
 - Custom packetization
@@ -46,10 +46,7 @@ The WebRTC-RtpTransport API enables web applications to support:
 - Custom bandwidth estimate
 - Custom rate control (with built-in bandwidth estimate)
 - Custom bitrate allocation
-- Custom metadata (header extensions)
-- Custom RTCP messages
-- Custom RTCP message timing
-- RTP forwarding
+- Packet forwarding
 
 ## Non-goals
 
@@ -58,25 +55,17 @@ encrypted and congestion-controlled communication.
 
 ## Key use-cases
 
-WebRTC-RtpTransport can be used to implement the following use cases: 
+RTCTransport can be used to implement the following use cases: 
 
 - [Use Case 1](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer-use-case-1.md): Custom Packetization
 - [Use Case 2](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer-use-case-2.md): Custom Congestion Control
 
-WebRTC-RtpTransport enables these use cases by enabling applications to:
+RTCTransport enables these use cases by enabling applications to:
 
 - Encode with a custom (WASM) codec, packetize and send
-- Obtain frames from Encoded Transform API, packetize and send
-- Obtain frames from Encoded Transform API, apply custom FEC, and send
-- Observe incoming NACKs and resend with custom RTX behavior
-- Observe incoming packets and customize when NACKs are sent
+- Observe packets and customize when NACKs are sent and when to resend with custom RTX behavior
 - Receive packets using a custom jitter buffer implementation
 - Use WebCodecs for encode or decode, implement packetization/depacketization and a custom jitter buffer
-- Receive packets, depacketize and inject into Encoded Transform (requires a constructor for EncodedAudioFrame/EncodedVideoFrame)
 - Observe incoming feedback and/or estimations from built-in congestion control and implement custom rate control (as long as the sending rate is lower than the bandwidth estimate provided by built-in congestion control)
-- Obtain frames from Encoded Transform API, packetize, attach custom metadata, and send
-- Obtain a bandwidth estimate from RtpTransport, do bitrate allocation, and set bitrates of RtpSenders
-- Forward RTP/RTCP packets from one PeerConnection to another, with full control over the entire packet (modulo SRTP/CC exceptions)
-
-## Alternative designs considered
-
+- Obtain a bandwidth estimate from RTCTransport, do bitrate allocation, and set bitrates of encoders
+- Forward packets from one RTCTransport to another, with full control over the entire packet (modulo encryption/CC exceptions)
