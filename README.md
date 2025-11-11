@@ -1,4 +1,4 @@
-# RtcTransport
+# RTCTransport
 
 A proposed API that allows web applications to directly send and receive network packets peer-to-peer, targeting realtime media and similar traffic.
 
