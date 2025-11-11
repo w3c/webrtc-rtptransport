@@ -51,7 +51,7 @@ The RTCTransport API enables web applications to support:
 ## Non-goals
 
 This is not [UDP Socket API](https://www.w3.org/TR/raw-sockets/).  We must have
-encrypted and congestion-control.
+consent, encryption, and congestion control.
 
 ## Key use-cases
 
