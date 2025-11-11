@@ -87,7 +87,7 @@ Enable applications to do custom packetization/depacketization by enabling them 
 - Do batch processing to run much less often than per-packet, to reduce overheads in high bandwidth situations, where packets are sent and received thousands of times per second.
 
 Complexities of sending and receiving packets other than these requirements are still handled by the User Agent, such
-as encryption and congestion control
+as encryption and congestion control.
 
 ## Examples
 
