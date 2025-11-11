@@ -13,18 +13,18 @@ improve scalability.
 
 For these applications, today's WebRTC APIs may not be sufficient, due to: 
 
--- Lack of support for custom metadata. In AR/VR applications, the metadata
+- Lack of support for custom metadata. In AR/VR applications, the metadata
 can be large enough to require custom packetization and rate control. 
 
--- Lack of codec support. For music, the AAC codec is popular,
+- Lack of codec support. For music, the AAC codec is popular,
 but it is not supported in WebRTC implementations. However,
 [AAC](https://www.w3.org/TR/webcodecs-aac-codec-registration/) is supported in WebCodecs.
 
--- Lack of custom rate control. While WebRTC's built-in rate control is
+- Lack of custom rate control. While WebRTC's built-in rate control is
 general purpose, it does not allow for rapid response to changes in bandwidth,
 as is possible with [per-frame QP rate control in WebCodecs](https://docs.google.com/presentation/d/1FpCAlxvRuC0e52JrthMkx-ILklB5eHszbk8D3FIuSZ0/edit#slide=id.g2452ff65d17_0_1).
 
--- Inability to support custom RTCP messages. WebRTC implementations today do
+- Inability to support custom RTCP messages. WebRTC implementations today do
 not support feedback messages such as [LRR](https://datatracker.ietf.org/doc/html/draft-ietf-avtext-lrr/), [RPSI](https://datatracker.ietf.org/doc/html/rfc4585#page-39) or [SLI](https://datatracker.ietf.org/doc/html/rfc4585#page-37), or extended statistics as provided by RTCP-XR. 
  
 Native applications can use raw UDP sockets, but those are not available on the
