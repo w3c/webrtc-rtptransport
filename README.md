@@ -1,6 +1,6 @@
-# WebRTC-RtpTransport
+# RtpTransport
 
-A proposed API that allows web applications to send and receive packets.
+A proposed API that allows web applications to directly send and receive network packets peer-to-peer, targeting realtime media and similar traffic.
 
 The RTCTransport API enables web applications to support: 
 - Custom payloads (ML-based audio codecs)
