@@ -66,7 +66,7 @@ spec:streams; type:interface; text:ReadableStream
 
 *This section is non-normative.*
 
-This specification describes an API for sending and receiveing packets.
+This specification describes an API for sending and receiving packets.
 
 Note: The API presented in this specification represents a preliminary proposal
 based on work-in-progress within the W3C WEBRTC WG. As a result, the API is likely
