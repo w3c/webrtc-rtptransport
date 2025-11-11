@@ -58,7 +58,7 @@ encrypted and congestion-control.
 RTCTransport enables these use cases by enabling applications to:
 
 - Encode with a custom (WASM) codec or WebCodecs, and then packetize and send
-- Receive packets, sends custom NACKs, receive those, and send customretransmissions (RTX)
+- Receive packets, sends custom NACKs, receive those, and send custom retransmissions (RTX)
 - Receive packets, put them in a custom jitter buffer, and then decode them using a custom codec (WASM) or WebCodecs
 - Receive packets, send custom feedback, receive custom feedback, be notified of built-in feedback, use that information to calculate a bandwidth estimate, and use that estimate to set bitrates of encoders
 - Forward packets from one RTCTransport to another, with full control over the entire packet (modulo encryption/CC exceptions)
