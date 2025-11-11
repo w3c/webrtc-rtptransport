@@ -13,7 +13,7 @@ Editor: Tony Herre, Google https://www.google.com, herre@google.com
 Editor: Bernard Aboba, w3cid 65611, Microsoft Corporation https://www.microsoft.com, bernarda@microsoft.com
 
 Abstract: 
-  The RTCTransport API allows web applications to send and receive packets.
+  The RTCTransport API allows web applications to send and receive network packets peer-to-peer, targeting realtime media and similar traffic.
 Boilerplate: omit conformance
 Complain About:accidental-2119 yes
 Markup Shorthands: css no, markdown yes, dfn yes
