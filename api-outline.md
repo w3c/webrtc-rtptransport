@@ -24,15 +24,19 @@ interface RtcTransport {
   // Largest allowed packet payload size.
   readonly attribute unsigned maxPacketsizeBytes;
 
+  // Will continuously gather host candidates.
+  void startGatheringHostCandidates();
+
   // Gathers local candidates using the specified STUN/TURN server. Promise
   // resolves when gathering is done.
   // TODO: Should there be timeout parameter as well?
   // TODO: STUN attributes?
-  // TODO: Gather host candidates, separate function or just null iceServer?
   promise<void> gatherCandidates(IceServer iceServer);
 
   // Triggers when a local candidate has been found.
-  attribute EventHandler oncandidate;
+  attribute EventHandler onlocalcandidategathered;
+  // Triggers when a local candidate has been removed (lost WIFI etc...).
+  attribute EventHandler onlocalcandidateremoved;
 
   // Tries to establish a path using the specified pair. The promise will either
   // return a probe result or some error. Can also be used to continuously
@@ -44,9 +48,6 @@ interface RtcTransport {
   // TODO: What RTT should be measured when using TURN, the TURN server or
   //       the other peer?
   promise<RtcProbeResult> probePath(CandidatePair);
-
-  // Triggers when a local candidate has been removed (lost WIFI etc...).
-  attribute EventHandler oncandidateremoved;
 
   // Triggers when the circuit-breaker kicks in.
   attribute EventHandler oncandidatedisabled;
