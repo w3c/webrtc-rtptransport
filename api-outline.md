@@ -22,7 +22,7 @@ interface RtcTransport {
   void setFormat(DOMString wireFormat);
 
   // Largest allowed packet payload size.
-  readonly attribute unsigned maxPacketsizeBytes;
+  unsigned getMaxPayloadSize(CandidatePair candidatePair);
 
   // Gathers local candidates using the specified STUN/TURN server. Promise
   // resolves when gathering is done.
