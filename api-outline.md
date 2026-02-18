@@ -120,13 +120,28 @@ enum CandidateType {
   relay,
 }
 
-dictionary Candidate {
-  DOMString ufrag;
-  DOMString pwd;
-  DOMString address;
-  unsigned port;
-  CandidateType type;
-  unsigned networkCost;
+// Will keep local candidates alive by periodically sending either STUN binding
+// requests, or in the case of TURN, by sending refresh requests.
+interface LocalCandidate {
+  readonly DOMString ufrag;
+  readonly DOMString pwd;
+  readonly DOMString address;
+  readonly unsigned port;
+  readonly CandidateType type;
+  readonly unsigned networkCost;
+
+  // Stops sending keep alive packets. If this is a TURN candidate the TURN
+  // allocation will be released.
+  void release();
+};
+
+dictionary RemoteCandidate {
+  readonly DOMString ufrag;
+  readonly DOMString pwd;
+  readonly DOMString address;
+  readonly unsigned port;
+  readonly CandidateType type;
+  readonly unsigned networkCost;
 };
 
 dictionary RtcTransportConfig {
@@ -136,8 +151,8 @@ dictionary RtcTransportConfig {
 };
 
 dicitonary CandidatePair {
-  Candidate localCandidate;
-  Candidate remoteCandidate;
+  LocalCandidate localCandidate;
+  RemoteCandidate remoteCandidate;
 };
 
 dictionary RtcProbeResult {
