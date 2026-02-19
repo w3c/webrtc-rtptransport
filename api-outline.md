@@ -26,6 +26,15 @@ interface RtcTransport {
   //       becomes non-viable before the scheduled send time.
   void sendPackets(sequence<RtcPacketToSend> packets, RtcNetworkRoute networkRoute);
 
+  // Set the fingerprints of the certificate of the peer.
+  void setRemoteFingerprints(sequence<ArrayBuffer> fingerprint);
+
+  // After a viable RtcNetworkRoute has been found then a handshake needs to be
+  // initiated or completed before `sendPackets` can be used. The promise
+  // resolves with `true` when encryption is successfully establish, `false`
+  // otherwise.
+  Promise<boolean> establishEncryption(RtcNetworkRoute networkRoute);
+
   // The type depends on which `RtcNetworkRouteControllerType` that was given in
   // the constructor.
   readonly attribute RtcNetworkRouteController networkRouteController;
@@ -198,7 +207,7 @@ dictionary RtcTransportConfig {
   // A name could be useful for debugging/devtools.
   DOMString name;
   RtcNetworkRouteControllerType transportControllerType;
-  // Certificates?
+  sequence<RTCCertificate> certificates;
 };
 
 dictionary RtcPacketToSend {
