@@ -5,10 +5,15 @@ function runSimulation(cfg) {
     const linkAB = new NetworkLinkSimulator('A → B', cfg.linkAB);
     const linkBA = new NetworkLinkSimulator('B → A', cfg.linkBA);
 
+    // Circuit breakers — one per direction
+    const cbAB = new CircuitBreaker();   // guards A→B data
+    const cbBA = new CircuitBreaker();   // guards B→A data
+
     const PKT_SIZE = cfg.packetSizeBytes;
     const FEEDBACK_INTERVAL_MS = 50;
     const PROCESS_INTERVAL_MS = 25;
     const FEEDBACK_PKT_SIZE = 80;
+    const CB_FEEDBACK_PKT_SIZE = 80;
     const duration = cfg.durationMs;
     const DRAIN_MS = 2000;
 
@@ -64,9 +69,11 @@ function runSimulation(cfg) {
                 // B received data sent by A
                 recvMapAB.set(pkt.seqNum, now);
                 highestRecvSeqAB = Math.max(highestRecvSeqAB, pkt.seqNum);
+                // Record arrival for circuit-breaker feedback (A→B)
+                if (pkt.cbSeq !== undefined) {
+                    cbAB.onDataReceived(pkt.cbSeq, now);
+                }
             } else if (pkt.type === 'feedback') {
-                // B receives feedback about B's own data (sent by A as receiver)
-                // Override feedbackTimeMs with B's receive time for correct RTT
                 const update = ccB.onTransportPacketsFeedback({
                     feedbackTimeMs: now,
                     packetFeedbacks: pkt.packetFeedbacks,
@@ -74,6 +81,9 @@ function runSimulation(cfg) {
                 bitrateB = update.targetBitrateBps;
                 const ackedB = ccB.acknowledgedBitrateEstimator.bitrate() || 0;
                 bitrateLogB.push({ timeMs: now, targetBps: bitrateB, ackedBps: ackedB });
+            } else if (pkt.type === 'cb-feedback') {
+                // CB feedback from A about B's sending → cbBA sender side
+                cbBA.handleFeedback(pkt, now);
             }
         }
 
@@ -89,8 +99,11 @@ function runSimulation(cfg) {
                 // A received data sent by B
                 recvMapBA.set(pkt.seqNum, now);
                 highestRecvSeqBA = Math.max(highestRecvSeqBA, pkt.seqNum);
+                // Record arrival for circuit-breaker feedback (B→A)
+                if (pkt.cbSeq !== undefined) {
+                    cbBA.onDataReceived(pkt.cbSeq, now);
+                }
             } else if (pkt.type === 'feedback') {
-                // A receives feedback about A's own data (sent by B as receiver)
                 const update = ccA.onTransportPacketsFeedback({
                     feedbackTimeMs: now,
                     packetFeedbacks: pkt.packetFeedbacks,
@@ -98,26 +111,35 @@ function runSimulation(cfg) {
                 bitrateA = update.targetBitrateBps;
                 const ackedA = ccA.acknowledgedBitrateEstimator.bitrate() || 0;
                 bitrateLogA.push({ timeMs: now, targetBps: bitrateA, ackedBps: ackedA });
+            } else if (pkt.type === 'cb-feedback') {
+                // CB feedback from B about A's sending → cbAB sender side
+                cbAB.handleFeedback(pkt, now);
             }
         }
 
         // 3. Send data packets (only during active period)
         if (now <= duration) {
-            // A sends data on linkAB
+            // A sends data on linkAB (through circuit breaker)
             budgetA += bitrateA / 8000; // bytes per ms
             while (budgetA >= PKT_SIZE) {
                 budgetA -= PKT_SIZE;
                 ccA.onSentPacket({ seqNum: seqA, sendTimeMs: now, sizeBytes: PKT_SIZE });
-                linkAB.enqueue({ type: 'data', seqNum: seqA }, PKT_SIZE, now);
+                const cbResA = cbAB.send({ type: 'data', seqNum: seqA }, PKT_SIZE, now);
+                if (cbResA.allowed) {
+                    linkAB.enqueue(cbResA.packet, PKT_SIZE, now);
+                }
                 seqA++;
             }
 
-            // B sends data on linkBA
+            // B sends data on linkBA (through circuit breaker)
             budgetB += bitrateB / 8000;
             while (budgetB >= PKT_SIZE) {
                 budgetB -= PKT_SIZE;
                 ccB.onSentPacket({ seqNum: seqB, sendTimeMs: now, sizeBytes: PKT_SIZE });
-                linkBA.enqueue({ type: 'data', seqNum: seqB }, PKT_SIZE, now);
+                const cbResB = cbBA.send({ type: 'data', seqNum: seqB }, PKT_SIZE, now);
+                if (cbResB.allowed) {
+                    linkBA.enqueue(cbResB.packet, PKT_SIZE, now);
+                }
                 seqB++;
             }
         }
@@ -155,6 +177,16 @@ function runSimulation(cfg) {
             lastFeedbackFromA = now;
         }
 
+        // 4b. Circuit-breaker feedback
+        // B sends CB feedback about A→B direction (via linkBA)
+        if (cbAB.nextFeedbackTimeMs() <= now) {
+            linkBA.enqueue(cbAB.sendFeedback(now), CB_FEEDBACK_PKT_SIZE, now);
+        }
+        // A sends CB feedback about B→A direction (via linkAB)
+        if (cbBA.nextFeedbackTimeMs() <= now) {
+            linkAB.enqueue(cbBA.sendFeedback(now), CB_FEEDBACK_PKT_SIZE, now);
+        }
+
         // 5. GoogCC process intervals
         if (now - lastProcessA >= PROCESS_INTERVAL_MS) {
             const update = ccA.onProcessInterval(now);
@@ -185,6 +217,8 @@ function runSimulation(cfg) {
         bitrateLogB,
         ccA,
         ccB,
+        cbAB,
+        cbBA,
         virtualTimeMs: endTime,
     };
 }
@@ -414,7 +448,92 @@ function buildLinkChart(canvasId, title, link) {
     });
 }
 
-function renderStats(elId, name, link, cc) {
+function buildCbChart(canvasId, title, cb) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+
+    let cwndData = cb.cwndLog.map(p => ({ x: p.timeMs / 1000, y: p.cwndBytes / 1024 }));
+    cwndData = decimateMinMax(cwndData, 4000);
+
+    let bifData = cb.cwndLog.map(p => ({ x: p.timeMs / 1000, y: p.bytesInFlight / 1024 }));
+    bifData = decimateMinMax(bifData, 4000);
+
+    const dropPts = cb.dropLog.map(e => ({ x: e.timeMs / 1000, y: 0 }));
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [
+                {
+                    label: 'cwnd (KB)',
+                    data: cwndData,
+                    stepped: 'before',
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37,99,235,0.06)',
+                    fill: true,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    order: 2,
+                },
+                {
+                    label: 'Bytes In Flight (KB)',
+                    data: bifData,
+                    borderColor: '#10b981',
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    tension: 0.3,
+                    order: 1,
+                },
+                {
+                    label: 'CB Drop',
+                    data: dropPts,
+                    type: 'scatter',
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointStyle: 'crossRot',
+                    backgroundColor: '#ef4444',
+                    borderColor: '#ef4444',
+                    borderWidth: 2,
+                    order: 0,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            interaction: { mode: 'nearest', intersect: false },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: 'Time (s)', font: { size: 12 } },
+                    ticks: { font: { size: 11 } },
+                },
+                y: {
+                    title: { display: true, text: 'KB', font: { size: 12 } },
+                    beginAtZero: true,
+                    ticks: { font: { size: 11 } },
+                },
+            },
+            plugins: {
+                title: { display: true, text: title, font: { size: 15, weight: '600' }, padding: { bottom: 8 } },
+                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 14, font: { size: 12 } } },
+                tooltip: {
+                    callbacks: {
+                        label(ctx) {
+                            if (ctx.dataset.type === 'scatter') {
+                                return `${ctx.dataset.label} @ ${ctx.parsed.x.toFixed(3)}s`;
+                            }
+                            return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} KB`;
+                        }
+                    }
+                },
+            },
+        },
+    });
+}
+
+function renderStats(elId, name, link, cc, cb) {
     const el = document.getElementById(elId);
     const s = link.stats;
     const lossRate = s.sent > 0 ? ((s.dropped / s.sent) * 100).toFixed(2) : '0.00';
@@ -425,6 +544,10 @@ function renderStats(elId, name, link, cc) {
     const ccState = cc._currentState(0);
     const ackedBps = cc.acknowledgedBitrateEstimator.bitrate() || 0;
 
+    const cbDropRate = cb.stats.sent > 0
+        ? ((cb.stats.dropped / cb.stats.sent) * 100).toFixed(2)
+        : '0.00';
+
     el.innerHTML = `
     <h3>${name}</h3>
     <p><b>CC Target:</b> ${(ccState.targetBitrateBps / 1000).toFixed(0)} kbps</p>
@@ -433,7 +556,10 @@ function renderStats(elId, name, link, cc) {
     <hr style="margin:6px 0;border:none;border-top:1px solid #e2e8f0">
     <p>Pkts sent: <b>${s.sent.toLocaleString()}</b>&emsp;Delivered: <b>${s.delivered.toLocaleString()}</b></p>
     <p>Dropped: <b>${s.dropped.toLocaleString()}</b> (${lossRate}%)</p>
-    <p class="sub">Overflow: ${overflow.toLocaleString()}&emsp;Random: ${random.toLocaleString()}&emsp;Burst: ${burst.toLocaleString()}</p>`;
+    <p class="sub">Overflow: ${overflow.toLocaleString()}&emsp;Random: ${random.toLocaleString()}&emsp;Burst: ${burst.toLocaleString()}</p>
+    <hr style="margin:6px 0;border:none;border-top:1px solid #e2e8f0">
+    <p><b>Circuit Breaker:</b> ${cb.stats.dropped.toLocaleString()} dropped / ${cb.stats.sent.toLocaleString()} sent (${cbDropRate}%)</p>
+    <p class="sub">cwnd: ${(cb.cwnd / 1024).toFixed(0)} KB&emsp;In-flight: ${(cb.bytesInFlight / 1024).toFixed(0)} KB&emsp;est RTT: ${cb.rttMs.toFixed(0)} ms</p>`;
 }
 
 // ================================================================
@@ -495,12 +621,14 @@ document.getElementById('run-btn').addEventListener('click', () => {
 
             charts.ccA = buildCcChart('chart-cc-a', 'GoogCC: Endpoint A → B', result.bitrateLogA, cfg.linkAB.bitrateBps);
             charts.ccB = buildCcChart('chart-cc-b', 'GoogCC: Endpoint B → A', result.bitrateLogB, cfg.linkBA.bitrateBps);
+            charts.cbAB = buildCbChart('chart-cb-ab', 'Circuit Breaker: A → B', result.cbAB);
+            charts.cbBA = buildCbChart('chart-cb-ba', 'Circuit Breaker: B → A', result.cbBA);
             charts.linkAB = buildLinkChart('chart-ab', 'Link A → B (queue)', result.linkAB);
             charts.linkBA = buildLinkChart('chart-ba', 'Link B → A (queue)', result.linkBA);
 
             document.getElementById('stats-row').style.display = 'grid';
-            renderStats('stats-ab', 'A → B', result.linkAB, result.ccA);
-            renderStats('stats-ba', 'B → A', result.linkBA, result.ccB);
+            renderStats('stats-ab', 'A → B', result.linkAB, result.ccA, result.cbAB);
+            renderStats('stats-ba', 'B → A', result.linkBA, result.ccB, result.cbBA);
 
             document.getElementById('sim-info').textContent =
                 `Simulated ${(result.virtualTimeMs / 1000).toFixed(1)}s of virtual time ` +
