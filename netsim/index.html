@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Network Simulator</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="googcc.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -72,17 +73,17 @@
         </div>
 
         <div class="config-section full-width">
-            <h3>Traffic</h3>
+            <h3>GoogCC</h3>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 24px;">
                 <div class="slider-row">
-                    <label>A Send Rate (kbps)</label>
-                    <input type="range" id="rate-a" min="0" max="20000" value="2000" step="10">
-                    <span class="slider-val" id="rate-a-v">2000</span>
+                    <label>Start Rate (kbps)</label>
+                    <input type="range" id="cc-start" min="50" max="5000" value="300" step="10">
+                    <span class="slider-val" id="cc-start-v">300</span>
                 </div>
                 <div class="slider-row">
-                    <label>B Send Rate (kbps)</label>
-                    <input type="range" id="rate-b" min="0" max="20000" value="500" step="10">
-                    <span class="slider-val" id="rate-b-v">500</span>
+                    <label>Max Rate (kbps)</label>
+                    <input type="range" id="cc-max" min="100" max="20000" value="5000" step="10">
+                    <span class="slider-val" id="cc-max-v">5000</span>
                 </div>
                 <div class="slider-row">
                     <label>Packet Size (bytes)</label>
@@ -91,8 +92,8 @@
                 </div>
                 <div class="slider-row">
                     <label>Duration (seconds)</label>
-                    <input type="range" id="sim-dur" min="1" max="60" value="10" step="1">
-                    <span class="slider-val" id="sim-dur-v">10</span>
+                    <input type="range" id="sim-dur" min="1" max="120" value="30" step="1">
+                    <span class="slider-val" id="sim-dur-v">30</span>
                 </div>
             </div>
         </div>
@@ -105,6 +106,8 @@
     <div id="sim-info"></div>
 
     <div class="charts-area">
+        <div class="chart-box"><canvas id="chart-cc-a"></canvas></div>
+        <div class="chart-box"><canvas id="chart-cc-b"></canvas></div>
         <div class="chart-box"><canvas id="chart-ab"></canvas></div>
         <div class="chart-box"><canvas id="chart-ba"></canvas></div>
     </div>
