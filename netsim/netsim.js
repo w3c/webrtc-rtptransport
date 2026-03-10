@@ -1,0 +1,434 @@
+// ================================================================
+//  NetworkLinkSimulator — leaky-bucket model
+// ================================================================
+class NetworkLinkSimulator {
+    /**
+     * @param {string} name
+     * @param {Object} config
+     * @param {number} config.bitrateBps        Link bitrate in bits/sec
+     * @param {number} config.maxQueueBytes      Max bytes in the simulator
+     * @param {number} config.fixedLatencyMs     Fixed propagation delay (ms)
+     * @param {number} config.randomLossRate     Independent loss probability [0,1]
+     * @param {number} config.burstLossRate      Gilbert G→B transition prob [0,1]
+     */
+    constructor(name, config = {}) {
+        this.name = name;
+        this.bitrateBps = config.bitrateBps ?? 1_000_000;
+        this.maxQueueBytes = config.maxQueueBytes ?? 102_400;
+        this.fixedLatencyMs = config.fixedLatencyMs ?? 50;
+        this.randomLossRate = config.randomLossRate ?? 0;
+        this.burstLossRate = config.burstLossRate ?? 0;
+        // Average burst length ~3.3 packets (1/0.3)
+        this.burstRecoveryRate = 0.3;
+        this._reset();
+    }
+
+    _reset() {
+        this.queue = [];          // {packet, sizeBytes, availableTimeMs}
+        this.queuedBytes = 0;
+        this.nextTransmitEndMs = 0;
+        this.inBurst = false;
+
+        this.queueLog = [{ timeMs: 0, queueBytes: 0 }];
+        this.lossLog = [];       // {timeMs, sizeBytes, reason}
+        this.stats = { sent: 0, delivered: 0, dropped: 0 };
+    }
+
+    /** Returns true if accepted; false if dropped. */
+    enqueue(packet, sizeBytes, nowMs) {
+        this.stats.sent++;
+
+        // Drop if network queue is full
+        if (this.queuedBytes + sizeBytes > this.maxQueueBytes) {
+            this.stats.dropped++;
+            this.lossLog.push({ timeMs: nowMs, sizeBytes, reason: 'overflow' });
+            return false;
+        }
+
+        // Drop in bursts
+        if (this.inBurst) {
+            if (Math.random() < this.burstRecoveryRate) {
+                this.inBurst = false;
+            }
+        } else {
+            if (Math.random() < this.burstLossRate) {
+                this.inBurst = true;
+            }
+        }
+        if (this.inBurst) {
+            this.stats.dropped++;
+            this.lossLog.push({ timeMs: nowMs, sizeBytes, reason: 'burst' });
+            return false;
+        }
+
+        // Also drop randomly
+        if (Math.random() < this.randomLossRate) {
+            this.stats.dropped++;
+            this.lossLog.push({ timeMs: nowMs, sizeBytes, reason: 'random' });
+            return false;
+        }
+
+        // Schedule packet send
+        const txStart = Math.max(nowMs, this.nextTransmitEndMs);
+        const txDuration = (sizeBytes * 8 / this.bitrateBps) * 1000; // ms
+        const txEnd = txStart + txDuration;
+        this.nextTransmitEndMs = txEnd;
+
+        // Add some fixed latency
+        const available = txEnd + this.fixedLatencyMs;
+        this.queue.push({ packet, sizeBytes, availableTimeMs: available });
+        this.queuedBytes += sizeBytes;
+        this.queueLog.push({ timeMs: nowMs, queueBytes: this.queuedBytes });
+        return true;
+    }
+
+    /** Returns the time the next packet should be dequeue, or Infinity if none. */
+    nextDequeueTimeMs() {
+        return this.queue.length > 0 ? this.queue[0].availableTimeMs : Infinity;
+    }
+
+    /** Dequeue the next packet, if available */
+    dequeue(nowMs) {
+        if (this.queue.length === 0) {
+            return null;
+        }
+        if (nowMs < this.queue[0].availableTimeMs) {
+            return null;
+        }
+        const entry = this.queue.shift();
+        this.queuedBytes -= entry.sizeBytes;
+        this.stats.delivered++;
+        this.queueLog.push({ timeMs: nowMs, queueBytes: this.queuedBytes });
+        return { packet: entry.packet, sizeBytes: entry.sizeBytes };
+    }
+}
+
+// ================================================================
+//  Simulation — event-driven with virtual time
+// ================================================================
+function runSimulation(cfg) {
+    const linkAB = new NetworkLinkSimulator('A → B', cfg.linkAB);
+    const linkBA = new NetworkLinkSimulator('B → A', cfg.linkBA);
+
+    const pktSize = cfg.packetSizeBytes;
+    const duration = cfg.durationMs;
+
+    // Interval between packets (ms) for each sender
+    const intervalA = cfg.sendRateABytes > 0
+        ? (pktSize / cfg.sendRateABytes) * 1000 : Infinity;
+    const intervalB = cfg.sendRateBBytes > 0
+        ? (pktSize / cfg.sendRateBBytes) * 1000 : Infinity;
+
+    let now = 0;
+    let nextSendA = isFinite(intervalA) ? 0 : Infinity;
+    let nextSendB = isFinite(intervalB) ? 0 : Infinity;
+    let seqA = 0;
+    let seqB = 0;
+    let iterations = 0;
+    const MAX_ITER = 5_000_000;
+
+    while (iterations++ < MAX_ITER) {
+        // Find next event time
+        let next = Infinity;
+        if (nextSendA <= duration) {
+            next = Math.min(next, nextSendA);
+        }
+        if (nextSendB <= duration) {
+            next = Math.min(next, nextSendB);
+        }
+        next = Math.min(next, linkAB.nextDequeueTimeMs(), linkBA.nextDequeueTimeMs());
+
+        if (!isFinite(next)) {
+            break;
+        }
+
+        // Allow extra time for in-flight packets to drain after senders stop
+        if (next > duration + 30_000) {
+            break;
+        }
+
+        now = next;
+
+        // Process dequeues first (frees queue space)
+        while (linkAB.nextDequeueTimeMs() <= now) {
+            linkAB.dequeue(now);
+        }
+        while (linkBA.nextDequeueTimeMs() <= now) {
+            linkBA.dequeue(now);
+        }
+
+        // Send from A
+        if (nextSendA <= now && nextSendA <= duration) {
+            linkAB.enqueue({ from: 'A', seq: seqA++ }, pktSize, now);
+            nextSendA += intervalA;
+        }
+        // Send from B
+        if (nextSendB <= now && nextSendB <= duration) {
+            linkBA.enqueue({ from: 'B', seq: seqB++ }, pktSize, now);
+            nextSendB += intervalB;
+        }
+    }
+
+    // Final drain — dequeue anything remaining
+    while (linkAB.queue.length > 0) {
+        const t = linkAB.nextDequeueTimeMs();
+        linkAB.dequeue(t);
+        now = Math.max(now, t);
+    }
+    while (linkBA.queue.length > 0) {
+        const t = linkBA.nextDequeueTimeMs();
+        linkBA.dequeue(t);
+        now = Math.max(now, t);
+    }
+
+    return { linkAB, linkBA, virtualTimeMs: now, iterations };
+}
+
+// ================================================================
+//  Chart helpers
+// ================================================================
+
+/** Min/max decimation for stepped data — preserves peaks and valleys */
+function decimateMinMax(data, maxPoints) {
+    if (data.length <= maxPoints) return data;
+    const bucketCount = Math.floor(maxPoints / 2);
+    const bucketSize = data.length / bucketCount;
+    const result = [data[0]];
+    for (let i = 0; i < bucketCount; i++) {
+        const lo = Math.floor(i * bucketSize);
+        const hi = Math.min(Math.floor((i + 1) * bucketSize), data.length);
+        let minPt = data[lo], maxPt = data[lo];
+        for (let j = lo; j < hi; j++) {
+            if (data[j].y < minPt.y) minPt = data[j];
+            if (data[j].y > maxPt.y) maxPt = data[j];
+        }
+        if (minPt.x <= maxPt.x) {
+            result.push(minPt);
+            if (minPt !== maxPt) result.push(maxPt);
+        } else {
+            result.push(maxPt);
+            if (minPt !== maxPt) result.push(minPt);
+        }
+    }
+    result.push(data[data.length - 1]);
+    return result;
+}
+
+let chartAB = null;
+let chartBA = null;
+
+function buildChart(canvasId, title, link) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+
+    // Convert to chart coordinates (seconds, KB)
+    let queueData = link.queueLog.map(p => ({ x: p.timeMs / 1000, y: p.queueBytes / 1024 }));
+    queueData = decimateMinMax(queueData, 8000);
+
+    const overflowPts = link.lossLog
+        .filter(e => e.reason === 'overflow')
+        .map(e => ({ x: e.timeMs / 1000, y: 0 }));
+    const randomPts = link.lossLog
+        .filter(e => e.reason === 'random')
+        .map(e => ({ x: e.timeMs / 1000, y: 0 }));
+    const burstPts = link.lossLog
+        .filter(e => e.reason === 'burst')
+        .map(e => ({ x: e.timeMs / 1000, y: 0 }));
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [
+                {
+                    label: 'Data in Link (KB)',
+                    data: queueData,
+                    stepped: 'before',
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.08)',
+                    fill: true,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    order: 2,
+                },
+                {
+                    label: 'Overflow Drop',
+                    data: overflowPts,
+                    type: 'scatter',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    pointStyle: 'triangle',
+                    backgroundColor: '#ef4444',
+                    borderColor: '#ef4444',
+                    order: 0,
+                },
+                {
+                    label: 'Random Drop',
+                    data: randomPts,
+                    type: 'scatter',
+                    pointRadius: 4,
+                    pointHoverRadius: 7,
+                    backgroundColor: '#f97316',
+                    borderColor: '#f97316',
+                    order: 0,
+                },
+                {
+                    label: 'Burst Drop',
+                    data: burstPts,
+                    type: 'scatter',
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    pointStyle: 'rectRot',
+                    backgroundColor: '#a855f7',
+                    borderColor: '#a855f7',
+                    order: 0,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            animation: false,
+            interaction: { mode: 'nearest', intersect: false },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: 'Time (s)', font: { size: 12 } },
+                    ticks: { font: { size: 11 } },
+                },
+                y: {
+                    title: { display: true, text: 'Data in Link (KB)', font: { size: 12 } },
+                    beginAtZero: true,
+                    ticks: { font: { size: 11 } },
+                },
+            },
+            plugins: {
+                title: { display: true, text: title, font: { size: 15, weight: '600' }, padding: { bottom: 8 } },
+                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 14, font: { size: 12 } } },
+                tooltip: {
+                    callbacks: {
+                        label(ctx) {
+                            if (ctx.dataset.type === 'scatter') {
+                                return `${ctx.dataset.label} @ ${ctx.parsed.x.toFixed(3)}s`;
+                            }
+                            return `${ctx.parsed.y.toFixed(1)} KB`;
+                        }
+                    }
+                },
+            },
+        },
+    });
+}
+
+function renderStats(elId, name, link) {
+    const el = document.getElementById(elId);
+    const s = link.stats;
+    const lossRate = s.sent > 0 ? ((s.dropped / s.sent) * 100).toFixed(2) : '0.00';
+    const overflow = link.lossLog.filter(e => e.reason === 'overflow').length;
+    const random = link.lossLog.filter(e => e.reason === 'random').length;
+    const burst = link.lossLog.filter(e => e.reason === 'burst').length;
+
+    el.innerHTML = `
+    <h3>${name}</h3>
+    <p>Packets sent: <b>${s.sent.toLocaleString()}</b></p>
+    <p>Delivered: <b>${s.delivered.toLocaleString()}</b></p>
+    <p>Dropped: <b>${s.dropped.toLocaleString()}</b> (${lossRate}%)</p>
+    <p class="sub">Overflow: ${overflow.toLocaleString()}</p>
+    <p class="sub">Random: ${random.toLocaleString()}</p>
+    <p class="sub">Burst: ${burst.toLocaleString()}</p>`;
+}
+
+// ================================================================
+//  UI wiring
+// ================================================================
+
+// Sync slider values to display spans
+document.querySelectorAll('input[type="range"]').forEach(input => {
+    const span = document.getElementById(input.id + '-v');
+    if (!span) return;
+    const refresh = () => {
+        const v = parseFloat(input.value);
+        span.textContent = (input.step && parseFloat(input.step) < 1) ? v.toFixed(1) : String(v);
+    };
+    input.addEventListener('input', refresh);
+    refresh();
+});
+
+function val(id) {
+    return parseFloat(document.getElementById(id).value);
+}
+
+function getConfig() {
+    return {
+        linkAB: {
+            bitrateBps: val('linkab-bitrate') * 1000,
+            maxQueueBytes: val('linkab-queue') * 1024,
+            fixedLatencyMs: val('linkab-latency'),
+            randomLossRate: val('linkab-rloss') / 100,
+            burstLossRate: val('linkab-bloss') / 100,
+        },
+        linkBA: {
+            bitrateBps: val('linkba-bitrate') * 1000,
+            maxQueueBytes: val('linkba-queue') * 1024,
+            fixedLatencyMs: val('linkba-latency'),
+            randomLossRate: val('linkba-rloss') / 100,
+            burstLossRate: val('linkba-bloss') / 100,
+        },
+        sendRateABytes: val('rate-a') * 1000 / 8,   // kbps → bytes/sec
+        sendRateBBytes: val('rate-b') * 1000 / 8,
+        packetSizeBytes: val('pkt-size'),
+        durationMs: val('sim-dur') * 1000,
+    };
+}
+
+document.getElementById('run-btn').addEventListener('click', () => {
+    const btn = document.getElementById('run-btn');
+    btn.disabled = true;
+    btn.textContent = 'Running…';
+
+    // Yield to repaint, then run
+    setTimeout(() => {
+        try {
+            const cfg = getConfig();
+
+            // Rough event estimate — warn if huge
+            const pktsA = cfg.sendRateABytes > 0
+                ? (cfg.durationMs / 1000) * cfg.sendRateABytes / cfg.packetSizeBytes : 0;
+            const pktsB = cfg.sendRateBBytes > 0
+                ? (cfg.durationMs / 1000) * cfg.sendRateBBytes / cfg.packetSizeBytes : 0;
+            const estEvents = (pktsA + pktsB) * 3;
+            if (estEvents > 3_000_000) {
+                if (!confirm(
+                    `This configuration produces ~${(estEvents / 1e6).toFixed(1)}M events and may take a while.\nContinue?`
+                )) {
+                    btn.disabled = false;
+                    btn.textContent = 'Run Simulation';
+                    return;
+                }
+            }
+
+            const t0 = performance.now();
+            const result = runSimulation(cfg);
+            const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+
+            // Destroy old charts
+            if (chartAB) { chartAB.destroy(); chartAB = null; }
+            if (chartBA) { chartBA.destroy(); chartBA = null; }
+
+            chartAB = buildChart('chart-ab', 'Link A → B', result.linkAB);
+            chartBA = buildChart('chart-ba', 'Link B → A', result.linkBA);
+
+            document.getElementById('stats-row').style.display = 'grid';
+            renderStats('stats-ab', 'Link A → B', result.linkAB);
+            renderStats('stats-ba', 'Link B → A', result.linkBA);
+
+            document.getElementById('sim-info').textContent =
+                `Simulated ${(result.virtualTimeMs / 1000).toFixed(2)}s of virtual time ` +
+                `in ${elapsed}s wall-clock (${result.iterations.toLocaleString()} events)`;
+
+        } catch (err) {
+            console.error(err);
+            alert('Simulation error: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Run Simulation';
+        }
+    }, 60);
+});

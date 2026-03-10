@@ -1,0 +1,169 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #f1f5f9;
+    color: #1e293b;
+    padding: 16px;
+    line-height: 1.5;
+}
+
+h1 {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 16px;
+    color: #0f172a;
+}
+
+.config-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 1100px;
+    margin: 0 auto 16px;
+}
+
+.config-section {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.config-section.full-width {
+    grid-column: 1 / -1;
+}
+
+.config-section h3 {
+    font-size: 0.9rem;
+    color: #334155;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+}
+
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+
+.slider-row label {
+    flex: 0 0 150px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.slider-row input[type="range"] {
+    flex: 1;
+    cursor: pointer;
+}
+
+.slider-val {
+    flex: 0 0 65px;
+    text-align: right;
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+.btn-row {
+    text-align: center;
+    margin: 16px 0;
+}
+
+.btn-row button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 10px 36px;
+    font-size: 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.15s;
+}
+
+.btn-row button:hover {
+    background: #1d4ed8;
+}
+
+.btn-row button:disabled {
+    background: #94a3b8;
+    cursor: wait;
+}
+
+.charts-area {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.chart-box {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    position: relative;
+}
+
+.chart-box canvas {
+    width: 100% !important;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 1100px;
+    margin: 0 auto 20px;
+}
+
+.stat-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    font-size: 13px;
+}
+
+.stat-card h3 {
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+    color: #334155;
+}
+
+.stat-card p {
+    margin-bottom: 2px;
+    font-family: monospace;
+}
+
+.stat-card .sub {
+    padding-left: 16px;
+    color: #64748b;
+}
+
+#sim-info {
+    text-align: center;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 700px) {
+
+    .config-panel,
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+
+    .slider-row label {
+        flex: 0 0 120px;
+    }
+}
