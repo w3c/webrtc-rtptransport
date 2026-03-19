@@ -1,5 +1,5 @@
 index.html: index.bs
-	curl https://api.csswg.org/bikeshed/ -F file=@index.bs  > index.html
+	curl https://www.w3.org/publications/spec-generator/ -F file=@index.bs -F type=bikeshed-spec > index.html
 
 check: index.bs
-	curl https://api.csswg.org/bikeshed/ -F file=@index.bs -F output=err
+	curl https://www.w3.org/publications/spec-generator/ -F file=@index.bs -F type=bikeshed-spec -F output=messages
