@@ -1,7 +1,6 @@
 # API Outline 
 
 STATUS: working draft
-
 ```javascript
 interface RtcTransport {
   // Should the user be able to add/remove iceServers after the transport has
@@ -21,46 +20,16 @@ interface RtcTransport {
   //       happened.
   void setFormat(DOMString wireFormat);
 
-  // Largest allowed packet payload size.
-  readonly attribute unsigned maxPacketsizeBytes;
+  // Send packets according to their send timestamps on the given route.
+  // TODO: Exact behavior needs to be specified for what should happen if the
+  //       NetworkRoute is non-viable when packets are scheduled, or if it
+  //       becomes non-viable before the scheduled send time.
+  void sendPackets(sequence<RtcPacketToSend> packets, NetworkRoute route);
 
-  // Gathers local candidates using the specified STUN/TURN server. Promise
-  // resolves when gathering is done.
-  // TODO: Should there be timeout parameter as well?
-  // TODO: STUN attributes?
-  // TODO: Gather host candidates, separate function or just null iceServer?
-  promise<void> gatherCandidates(IceServer iceServer);
+  readonly attribute (RtcManualIceController or RtcAutomaticIceController) transportController;
 
-  // Triggers when a local candidate has been found.
-  attribute EventHandler oncandidate;
-
-  // Tries to establish a path using the specified pair. The promise will either
-  // return a probe result or some error. Can also be used to continuously
-  // probe/keep the path alive.
-  // NOTE: As soon as the first viable path is found then encryption between the
-  //       two peers will be established. Only after that has succeeded will the
-  //       promise resolve.
-  // TODO: STUN attributes?
-  // TODO: What RTT should be measured when using TURN, the TURN server or
-  //       the other peer?
-  promise<RtcProbeResult> probePath(CandidatePair);
-
-  // Triggers when a local candidate has been removed (lost WIFI etc...).
-  attribute EventHandler oncandidateremoved;
-
-  // Triggers when the circuit-breaker kicks in.
-  attribute EventHandler oncandidatedisabled;
-
-  // Triggers when the circuit-breaker backs off.
-  attribute EventHandler oncandidateenabled;
-
-  // Send Packets according to their send timestamps on the given path.
-  // NOTE: Only `CandidatePair`s that was successfully probed with `probePath`
-  //       are accepted.
-  // TODO: Should we have a `nominateCandidatePair` function instead? Would 
-  //       that require "IceRoles"? Could "IceRoles" and path nominations be
-  //       implement at the app level?
-  void sendPackets(sequence<RtcPacketToSend>, CandidatePair);
+  // Triggers when the circuit-breaker disabled/re-enables the transport.
+  attribute EventHandler ontransportstatus;
 
   // Notifies the app that `getPacketSentInfo` can be called to get information
   // about sent packets. The app only get notified once per call to
@@ -77,7 +46,6 @@ interface RtcTransport {
   // - Sent packet information buffer overflow.
   // - Packet feedback buffer overflow.
   // - Receive buffer overflow.
-  // - Candidate gathering errors.
   attribute EventHandler onerror;
 
   // If protocol level feedback information could not piggybacked on any user
@@ -85,21 +53,97 @@ interface RtcTransport {
   // and send feedback to the other peer. This event handler notifies the user
   // that some amount of bytes were put on the wire.
   // NOTE: The RtcTransport protocol will always send feedback over the same
-  //       CandidatePair as the packets were received on.
+  //       NetworkRoute as the packets were received on.
   attribute EventHandler onfeedbacksent;
 
   // TODO:
   // -- Notification on protocol level traffic being sent.
   // -- Align ICE handing with RTCIceTransport & IceController specs
-  // -- Certificates/enceryption.
+  // -- Certificates/encryption.
   // -- Bring your own buffers.
   // 
   // OTHER:
   // -- Bring your own buffers?
   // -- Do we need a `setClientRole` that set the role of the peer?
-  // -- Worker/Window environment seperation
+  // -- Worker/Window environment separation
   // -- Details of circuit-breaker operation TBD - severity of crackdowns etc
   // -- Create an RtcTransport protocol RFC?
+};
+```
+
+A manual ICE controller API
+```javascript
+interface RtcManualIceController {
+  // Will continuously gather host candidates.
+  void gatherHostCandidates();
+
+  // Gathers srflx candidates.
+  promise<void> gatherSrflxCandidates(IceServer iceServer);
+  // Sends a STUN ping to the IceServer used to discover this candidate, used
+  // to keep the candidate (NAT binding) alive. Returns a boolean indicating
+  // whether a successful STUN response was received or not.
+  // NOTE: Not specifying the IceServer implies that the IceCandidate is tied
+  //       to a certain IceServer under the hood.
+  promise<boolean> refreshSrflxCandidate(IceCandidate localCandidate);
+
+  // Gathers relay candidates.
+  promise<void> gatherRelayCandidates(IceServer server, unsigned requestedLifetimeInSeconds);
+  // Sends a STUN packet with a LIFETIME attribute included, used to extend the
+  // TURN allocation. Returns the actual lifetime granted by the server.
+  promise<unsigned> refreshRelayCandidate(IceCandidate relayCandidate, unsigned requestedLifetimeInSeconds);
+
+  // Creates and object that represents a possible network route. An 
+  // IceCandidatePair is a generic "NetworkRouter" object that can be passed to
+  // the RtcTransport.send function.
+  IceCandidatePair createCandidatePair(IceCandidate localCandidate, IceCandidate remoteCandidate);
+
+  // Probes the candidate pair to check if it's (still) viable and what the RTT is.
+  promise<IceProbeResult> probeCandidatePair(IceCandidatePair candidatePair);
+
+  // Triggers when a local candidate has been found (IceCandidateGatheredEvent). 
+  attribute EventHandler oncandidategathered;
+
+  // Triggers when a local candidate has been removed (lost WIFI etc...).
+  attribute EventHandler oncandidateremoved;
+
+  // Triggers when the max payload size of some IceCandidatePair is updated. 
+  attribute EventHandler onmaxpayloadsizeupdate;
+
+  // Triggers when there is a candidate gathering error.
+  attribute EventHandler onerror;
+
+  // More stuff:
+  // - STUN attributes?
+  // - What should happen if a the STUN server returns a different IP/port?
+  //   Should we return some value indicating that the candidate changed/is
+  //   obsolete?
+};
+
+```
+
+An automatic ICE controller API
+```javascript
+interface RtcAutomaticIceController {
+  void SetIceServers(sequence<IceServer> servers);
+
+  void gatherCandidates();
+
+  void AddRemoteCandidate(IceCandidate remoteCandidate);
+
+  // Triggers when a local candidate has been found (IceCandidateGatheredEvent). 
+  attribute EventHandler oncandidategathered;
+
+  // Triggers when a local candidate has been removed (lost WIFI etc...).
+  attribute EventHandler oncandidateremoved;
+
+  // Triggers when the max payload size is updated. 
+  attribute EventHandler onmaxpayloadsizeupdate;
+
+  // Triggers whenever a new IceCandidatePair has been selected. 
+  attribute EventHandler oncandidatepairupdated;
+
+  // Triggers when there is a candidate gathering error.
+  attribute EventHandler onerror;
 };
 ```
 
@@ -107,42 +151,42 @@ Various helper types
 
 ```javascript
 dictionary IceServer {
-  DOMString url;
-  DOMString username;
-  DOMString credential;
+ DOMString url;
+ DOMString username;
+ DOMString credentials;
 };
 
-enum CandidateType {
+enum IceCandidateType {
   host,
   srflx,
   prflx,
   relay,
-}
+};
 
-dictionary Candidate {
-  DOMString ufrag;
-  DOMString pwd;
-  DOMString address;
-  unsigned port;
-  CandidateType type;
-  unsigned networkCost;
+dictionary IceCandidate {
+  readonly DOMString ufrag;
+  readonly DOMString pwd;
+  readonly DOMString address;
+  readonly unsigned port;
+  readonly IceCandidateType type;
+  readonly unsigned networkCost;
+};
+
+interface IceCandidatePair {
+  readonly IceCandidate localCandidate;
+  readonly IceCandidate remoteCandidate;
+};
+
+enum RtcTransportTransportControllerType {
+  automaticIceController,
+  manualIceController,
 };
 
 dictionary RtcTransportConfig {
   // A name could be useful for debugging/devtools.
   DOMString name;
+  RtcTransportTransportControllerType transportControllerType;
   // Certificates?
-};
-
-dicitonary CandidatePair {
-  Candidate localCandidate;
-  Candidate remoteCandidate;
-};
-
-dictionary RtcProbeResult {
-  // If true then the path can be used to send data over.
-  boolean pathIsViable;
-  double RttMs;
 };
 
 dictionary RtcPacketToSend {
@@ -170,7 +214,18 @@ dictionary RtcPacketReceived {
   // TODO: L4S/ECN
   ArrayBuffer data;
   DOMHighResTimeStamp receiveTime;
-  CandidatePair candidatePair;
-  // Should we also expose which candidate pair that was used for this packet?
+
+  NetworkRoute networkRoute;
 };
+
+dictionary IceCandidateGatheredEvent {
+  // Either a string ("host"), or an IceServer (the one passed to
+  // gatherCandidates), or an IceCandidate (the remote peer if prflx).
+  readonly (DOMString or IceServer or IceCandidate) source;
+  readonly IceCandidate localCandidate;
+  readonly unsigned networkCost;
+
+  // Only set if this is a relay candidate.
+  readonly unsigned? allocationLifetime;
+}
 ```
