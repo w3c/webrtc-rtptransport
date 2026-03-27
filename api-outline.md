@@ -22,11 +22,13 @@ interface RtcTransport {
 
   // Send packets according to their send timestamps on the given route.
   // TODO: Exact behavior needs to be specified for what should happen if the
-  //       NetworkRoute is non-viable when packets are scheduled, or if it
+  //       networkRoute is non-viable when packets are scheduled, or if it
   //       becomes non-viable before the scheduled send time.
-  void sendPackets(sequence<RtcPacketToSend> packets, NetworkRoute route);
+  void sendPackets(sequence<RtcPacketToSend> packets, RtcNetworkRoute networkRoute);
 
-  readonly attribute (RtcManualIceController or RtcAutomaticIceController) transportController;
+  // The type depends on which `RtcNetworkRouteControllerType` that was given in
+  // the constructor.
+  readonly attribute RtcNetworkRouteController networkRouteController;
 
   // Triggers when the circuit-breaker disabled/re-enables the transport.
   attribute EventHandler ontransportstatus;
@@ -53,7 +55,7 @@ interface RtcTransport {
   // and send feedback to the other peer. This event handler notifies the user
   // that some amount of bytes were put on the wire.
   // NOTE: The RtcTransport protocol will always send feedback over the same
-  //       NetworkRoute as the packets were received on.
+  //       RtcNetworkRoute as the packets were received on.
   attribute EventHandler onfeedbacksent;
 
   // TODO:
@@ -92,9 +94,7 @@ interface RtcManualIceController {
   // TURN allocation. Returns the actual lifetime granted by the server.
   Promise<unsigned> refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned requestedLifetimeInSeconds);
 
-  // Creates and object that represents a possible network route. An 
-  // IceCandidatePair is a generic "NetworkRouter" object that can be passed to
-  // the RtcTransport.send function.
+  // Creates an IceCandidatePair that represents a possible network route.
   IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidate remote);
 
   // Probes the candidate pair to check if it's (still) viable and what the RTT is.
@@ -150,6 +150,9 @@ interface RtcAutomaticIceController {
 Various helper types
 
 ```javascript
+typedef (RtcManualIceController or RtcAutomaticIceController) RtcNetworkRouteController;
+typedef (IceCandidatePair) RtcNetworkRoute;
+
 dictionary IceServer {
  DOMString url;
  DOMString username;
@@ -186,7 +189,7 @@ interface IceCandidatePair {
   readonly RemoteIceCandidate remoteCandidate;
 };
 
-enum RtcTransportTransportControllerType {
+enum RtcNetworkRouteControllerType {
   automaticIceController,
   manualIceController,
 };
@@ -194,7 +197,7 @@ enum RtcTransportTransportControllerType {
 dictionary RtcTransportConfig {
   // A name could be useful for debugging/devtools.
   DOMString name;
-  RtcTransportTransportControllerType transportControllerType;
+  RtcNetworkRouteControllerType transportControllerType;
   // Certificates?
 };
 
@@ -224,7 +227,7 @@ dictionary RtcPacketReceived {
   ArrayBuffer data;
   DOMHighResTimeStamp receiveTime;
 
-  NetworkRoute networkRoute;
+  RtcNetworkRoute networkRoute;
 };
 
 dictionary IceCandidateGatheredEvent {
