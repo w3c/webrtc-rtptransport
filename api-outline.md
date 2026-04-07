@@ -78,19 +78,19 @@ interface RtcManualIceController {
   void gatherHostCandidates();
 
   // Gathers srflx candidates.
-  promise<void> gatherSrflxCandidates(IceServer iceServer);
+  Promise<void> gatherSrflxCandidates(IceServer iceServer);
   // Sends a STUN ping to the IceServer used to discover this candidate, used
   // to keep the candidate (NAT binding) alive. Returns a boolean indicating
   // whether a successful STUN response was received or not.
   // NOTE: Not specifying the IceServer implies that the IceCandidate is tied
   //       to a certain IceServer under the hood.
-  promise<boolean> refreshSrflxCandidate(IceCandidate localCandidate);
+  Promise<boolean> refreshSrflxCandidate(IceCandidate localCandidate);
 
   // Gathers relay candidates.
-  promise<void> gatherRelayCandidates(IceServer server, unsigned requestedLifetimeInSeconds);
+  Promise<void> gatherRelayCandidates(IceServer server, unsigned requestedLifetimeInSeconds);
   // Sends a STUN packet with a LIFETIME attribute included, used to extend the
   // TURN allocation. Returns the actual lifetime granted by the server.
-  promise<unsigned> refreshRelayCandidate(IceCandidate relayCandidate, unsigned requestedLifetimeInSeconds);
+  Promise<unsigned> refreshRelayCandidate(IceCandidate relayCandidate, unsigned requestedLifetimeInSeconds);
 
   // Creates and object that represents a possible network route. An 
   // IceCandidatePair is a generic "NetworkRouter" object that can be passed to
@@ -98,7 +98,7 @@ interface RtcManualIceController {
   IceCandidatePair createCandidatePair(IceCandidate localCandidate, IceCandidate remoteCandidate);
 
   // Probes the candidate pair to check if it's (still) viable and what the RTT is.
-  promise<IceProbeResult> probeCandidatePair(IceCandidatePair candidatePair);
+  Promise<IceProbeResult> probeCandidatePair(IceCandidatePair candidatePair);
 
   // Triggers when a local candidate has been found (IceCandidateGatheredEvent). 
   attribute EventHandler oncandidategathered;
