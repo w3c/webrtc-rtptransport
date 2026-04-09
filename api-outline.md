@@ -84,18 +84,18 @@ interface RtcManualIceController {
   // whether a successful STUN response was received or not.
   // NOTE: Not specifying the IceServer implies that the IceCandidate is tied
   //       to a certain IceServer under the hood.
-  Promise<boolean> refreshSrflxCandidate(IceCandidate localCandidate);
+  Promise<boolean> refreshSrflxCandidate(LocalIceCandidate localCandidate);
 
   // Gathers relay candidates.
   Promise<void> gatherRelayCandidates(IceServer server, unsigned requestedLifetimeInSeconds);
   // Sends a STUN packet with a LIFETIME attribute included, used to extend the
   // TURN allocation. Returns the actual lifetime granted by the server.
-  Promise<unsigned> refreshRelayCandidate(IceCandidate relayCandidate, unsigned requestedLifetimeInSeconds);
+  Promise<unsigned> refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned requestedLifetimeInSeconds);
 
   // Creates and object that represents a possible network route. An 
   // IceCandidatePair is a generic "NetworkRouter" object that can be passed to
   // the RtcTransport.send function.
-  IceCandidatePair createCandidatePair(IceCandidate localCandidate, IceCandidate remoteCandidate);
+  IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidate remote);
 
   // Probes the candidate pair to check if it's (still) viable and what the RTT is.
   Promise<IceProbeResult> probeCandidatePair(IceCandidatePair candidatePair);
@@ -128,7 +128,7 @@ interface RtcAutomaticIceController {
 
   void gatherCandidates();
 
-  void AddRemoteCandidate(IceCandidate remoteCandidate);
+  void AddRemoteCandidate(RemoteIceCandidate remoteCandidate);
 
   // Triggers when a local candidate has been found (IceCandidateGatheredEvent). 
   attribute EventHandler oncandidategathered;
@@ -163,7 +163,7 @@ enum IceCandidateType {
   relay,
 };
 
-dictionary IceCandidate {
+interface LocalIceCandidate {
   readonly DOMString ufrag;
   readonly DOMString pwd;
   readonly DOMString address;
@@ -172,9 +172,18 @@ dictionary IceCandidate {
   readonly unsigned networkCost;
 };
 
+dictionary RemoteIceCandidate {
+  required DOMString ufrag;
+  required DOMString pwd;
+  required DOMString address;
+  required unsigned port;
+  required IceCandidateType type;
+  unsigned networkCost;
+};
+
 interface IceCandidatePair {
-  readonly IceCandidate localCandidate;
-  readonly IceCandidate remoteCandidate;
+  readonly LocalIceCandidate localCandidate;
+  readonly RemoteIceCandidate remoteCandidate;
 };
 
 enum RtcTransportTransportControllerType {
@@ -222,7 +231,7 @@ dictionary IceCandidateGatheredEvent {
   // Either a string ("host"), or an IceServer (the one passed to
   // gatherCandidates), or an IceCandidate (the remote peer if prflx).
   readonly (DOMString or IceServer or IceCandidate) source;
-  readonly IceCandidate localCandidate;
+  readonly LocalIceCandidate candidate;
   readonly unsigned networkCost;
 
   // Only set if this is a relay candidate.
