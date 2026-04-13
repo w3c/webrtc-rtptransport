@@ -7,18 +7,17 @@ interface RtcTransport {
   // been created?
   constructor(RtcTransportConfig config);
 
-  // SRTP/V0, DTLS/V0, DTLS/V1, QUIC/V1, SomeGreatWireformat/V1
   // NOTE: Negotiation of wire formats exist for the purpose of evolving the
   //       wire format, and the protocol if needed. Older formats should be
   //       considered deprecated and will be removed after some time.
-  readonly attribute sequence<DOMString> supportedFormats;
+  static readonly attribute FrozenArray<RtcTransportWireFormat> supportedFormats;
 
   // NOTE: A function like `setFormat` implies that the app decides on the wire
   //       format. May only be called once.
   // NOTE: The reason for not setting it in the ctor is so that the user can
   //       start collecting candidates before signaling with the remote has
   //       happened.
-  void setFormat(DOMString wireFormat);
+  void setFormat(RtcTransportWireFormat wireFormat);
 
   // Send packets according to their send timestamps on the given route.
   // TODO: Exact behavior needs to be specified for what should happen if the
@@ -153,6 +152,13 @@ Various helper types
 typedef (RtcManualIceController or RtcAutomaticIceController) RtcNetworkRouteController;
 typedef (IceCandidatePair) RtcNetworkRoute;
 
+
+// As the wire/feedback format evolves new enums will be added to describe them.
+// Examples could be "DTLS/V1" or "QUIC/V0".
+enum RtcTransportWireFormat {
+  "DTLS/V0",
+};
+
 dictionary IceServer {
  DOMString url;
  DOMString username;
@@ -160,17 +166,17 @@ dictionary IceServer {
 };
 
 enum IceCandidateType {
-  host,
-  srflx,
-  prflx,
-  relay,
+  "host",
+  "srflx",
+  "prflx",
+  "relay",
 };
 
 interface LocalIceCandidate {
   readonly DOMString ufrag;
   readonly DOMString pwd;
   readonly DOMString address;
-  readonly unsigned port;
+  readonly unsigned short port;
   readonly IceCandidateType type;
   readonly unsigned networkCost;
 };
@@ -179,7 +185,7 @@ dictionary RemoteIceCandidate {
   required DOMString ufrag;
   required DOMString pwd;
   required DOMString address;
-  required unsigned port;
+  required unsigned short port;
   required IceCandidateType type;
   unsigned networkCost;
 };
@@ -230,7 +236,7 @@ dictionary RtcPacketReceived {
   RtcNetworkRoute networkRoute;
 };
 
-dictionary IceCandidateGatheredEvent {
+interface IceCandidateGatheredEvent : Event {
   // Either a string ("host"), or an IceServer (the one passed to
   // gatherCandidates), or an IceCandidate (the remote peer if prflx).
   readonly (DOMString or IceServer or IceCandidate) source;
