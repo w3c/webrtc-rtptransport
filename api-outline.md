@@ -8,18 +8,17 @@ interface RtcTransport {
   // been created?
   constructor(RtcTransportConfig config);
 
-  // SRTP/V0, DTLS/V0, DTLS/V1, QUIC/V1, SomeGreatWireformat/V1
   // NOTE: Negotiation of wire formats exist for the purpose of evolving the
   //       wire format, and the protocol if needed. Older formats should be
   //       considered deprecated and will be removed after some time.
-  readonly attribute FrozenArray<RtcTransportFormat> supportedFormats;
+  static readonly attribute FrozenArray<RtcTransportFormat> supportedFormats;
 
   // NOTE: A function like `setFormat` implies that the app decides on the wire
   //       format. May only be called once.
   // NOTE: The reason for not setting it in the ctor is so that the user can
   //       start collecting candidates before signaling with the remote has
   //       happened.
-  undefined setFormat(RtcTransportFormat wireFormat);
+  undefined setFormat(RtcTransportFormat format);
 
   // Send packets according to their send timestamps on the given route.
   // TODO: Exact behavior needs to be specified for what should happen if the
@@ -154,6 +153,13 @@ Various helper types
 ```javascript
 typedef (RtcManualIceController or RtcAutomaticIceController) RtcNetworkRouteController;
 typedef IceCandidatePair RtcNetworkRoute;
+
+
+// As the wire/feedback format evolves new enums will be added to describe them.
+// Examples could be "DTLS/V1" or "QUIC/V0".
+enum RtcTransportFormat {
+  "DTLS/V0",
+};
 
 dictionary IceServer {
   required DOMString url;
