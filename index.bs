@@ -1,19 +1,18 @@
-<pre class="metadata">
-Title: RTC Transport
-Shortname: rtctransport
+<pre class='metadata'>
+Title: RtcTransport
+Shortname: rtc-transport
 Level: None
 Status: UD
 Group: webrtc
 ED: https://w3c.github.io/webrtc-rtptransport/
 TR: https://www.w3.org/TR/webrtc-rtptransport/
 Repository: w3c/webrtc-rtptransport
-URL: https://github.com/w3c/webrtc-rtptransport
+URL: https://w3c.github.io/webrtc-rtptransport/
 Editor: Peter Thatcher, w3cid 68236, Microsoft Corporation https://www.microsoft.com, pthatcher@microsoft.com
-Editor: Tony Herre, Google https://www.google.com, herre@google.com
 Editor: Bernard Aboba, w3cid 65611, Microsoft Corporation https://www.microsoft.com, bernarda@microsoft.com
-
-Abstract: 
-  The RTCTransport API allows web applications to send and receive network packets peer-to-peer, targeting realtime media and similar traffic.
+Editor: Tony Herre, Google https://www.google.com, herre@google.com
+Editor: Philip Eliasson, Google https://www.google.com, philipel@google.com
+Abstract: This document defines the `RtcTransport` API, a low-level API used for sending and receiving datagrams over a secure peer-to-peer transport.
 Boilerplate: omit conformance
 Complain About:accidental-2119 yes
 Markup Shorthands: css no, markdown yes, dfn yes
@@ -21,17 +20,12 @@ Markup Shorthands: css no, markdown yes, dfn yes
 !Participate: <a href="https://github.com/w3c/webrtc-rtptransport/issues/new">File an issue.</a>
 !Version History: <a href="https://github.com/w3c/webrtc-rtptransport/commits">https://github.com/w3c/webrtc-rtptransport/commits</a>
 </pre>
+
 <pre class=link-defaults>
 spec:webidl; type:dfn; text:resolve
 </pre>
 <pre class=biblio>
 {
-  "WEBCODECS": {
-     "title": "WebCodecs",
-     "href": "https://www.w3.org/TR/webcodecs/",
-     "status": "None",
-     "publisher": "IETF"
-   },
 }
 </pre>
 <style>
@@ -62,17 +56,17 @@ table#sample-types .even {
 spec:streams; type:interface; text:ReadableStream
 </pre>
 
-# Introduction # {#introduction}
+# Introduction # {#intro}
 
-*This section is non-normative.*
+The `RtcTransport` API is a low-level API used for sending and receiving datagrams over a secure peer-to-peer transport.
 
-This specification describes an API for sending and receiving packets.
+The transport is consent-based, meaning that the connection must be accepted by the remote peer before any application data can be sent.
 
-Note: The API presented in this specification represents a preliminary proposal
-based on work-in-progress within the W3C WEBRTC WG. As a result, the API is likely
-to change significantly going forward. 
+It provides application-level packet scheduling, giving applications full control over packet pacing and bandwidth estimation. Additionally, transport feedback is sent back to the sender and fed into a circuit-breaker, which protects the network by disallowing packets to be sent if abusive behavior is detected.
 
-# Conformance #  {#conformance}
+The API has been designed in a modular fashion to allow wire formats, transport establishment mechanics, and feedback formats to evolve over time.
+
+# Conformance # {#conformance}
 
 As well as sections marked as non-normative, all authoring guidelines,
 diagrams, examples, and notes in this specification are non-normative.
@@ -95,56 +89,457 @@ specification MUST implement them in a manner consistent with the ECMAScript
 Bindings defined in the Web IDL specification [[!WEBIDL]], as this
 specification uses that specification and terminology.
 
-# Terminology # {#terminology}
+# Concepts # {#concepts}
 
-Terminology definitions go here.
+: <dfn export>Circuit Breaker</dfn>
+:: A mechanism used to protect the network by detecting and stoping abusive behavior.
 
-# <dfn interface>RTCRtpTransport</dfn> Interface # {#rtptransport}
+: <dfn export>Transport Format</dfn>
+:: A combination of a wire format and a [=Transport Header=].
+
+: <dfn export>Network Route</dfn>
+:: A specific route between a local and a remote peer.
+
+: <dfn export>Transport Header</dfn>
+:: A transport level header included in packets that carries feedback information from the remote peer, used in conjuction with the [=Circuit Breaker=] to detect and prevent abusive network behavior.
+
+# The `RtcTransport` Interface # {#rtctransport-interface}
 
 <pre class="idl">
-[Exposed=(Window)]
-interface RTCTransport {
+interface RtcTransport {
+  constructor(optional RtcTransportConfig config);
+  static readonly attribute FrozenArray&lt;RtcTransportFormat&gt; supportedFormats;
+  readonly attribute RtcNetworkRouteController networkRouteController;
+  attribute EventHandler ontransportstatus;
+  attribute EventHandler onpendingpacketssentinfo;
+  attribute EventHandler onpendingpacketsreceived;
+  attribute EventHandler onerror;
+  attribute EventHandler onfeedbacksent;
+  undefined setFormat(RtcTransportFormat format);
+  undefined sendPackets(sequence&lt;RtcPacketToSend&gt; packets, RtcNetworkRoute networkRoute);
+  sequence&lt;RtcPacketSentInfo&gt; getPacketSentInfo();
+  sequence&lt;RtcPacketReceived&gt; getReceivedPacket();
 };
-
 </pre>
+
+## Internal slots ## {#rtctransport-internal-slots}
+
+An {{RtcTransport}} object has the following internal slots.
+
+<table class="data" dfn-for="RtcTransport" dfn-type="attribute">
+ <thead>
+  <tr>
+   <th>Internal Slot
+   <th>Description (<em>non-normative</em>)
+  </tr>
+ </thead>
+ <tbody>
+  <tr>
+   <td><dfn>`[[Format]]`</dfn>
+   <td class="non-normative">The configured {{RtcTransportFormat}}.
+  </tr>
+  <tr>
+   <td><dfn>`[[RouteController]]`</dfn>
+   <td class="non-normative">The route controller. Instantiated according to the provided {{RtcTransportConfig/transportControllerType}}.
+  </tr>
+  <tr>
+   <td><dfn>`[[PendingSendPackets]]`</dfn>
+   <td class="non-normative">An internal queue for packets that are scheduled to be sent.
+  </tr>
+  <tr>
+   <td><dfn>`[[PendingSentInfo]]`</dfn>
+   <td class="non-normative">An internal queue for packet sent info.
+  </tr>
+  <tr>
+   <td><dfn>`[[PendingReceivedPackets]]`</dfn>
+   <td class="non-normative">An internal queue for received packets.
+  </tr>
+ </tbody>
+</table>
+
+## Constructor ## {#rtctransport-constructor}
+
+: <dfn for="RtcTransport" method>constructor(config)</dfn>
+:: Initializes a new `RtcTransport` instance. The `config` determines the type of network route controller used.
 
 ## Attributes ## {#rtctransport-attributes}
 
-<dl dfn-for="RTCTransport">
-</dl>
+: <dfn for="RtcTransport" attribute>supportedFormats</dfn>
+:: Returns a list of supported {{RtcTransportFormat}}s.
+
+: <dfn for="RtcTransport" attribute>networkRouteController</dfn>
+:: Returns the controller associated with this transport.
+
+: <dfn for="RtcTransport" attribute>ontransportstatus</dfn>
+:: Fired when the circuit-breaker disables or re-enables the transport.
+
+: <dfn for="RtcTransport" attribute>onpendingpacketssentinfo</dfn>
+:: Fired when there is new packet sent info to retrieve.
+
+: <dfn for="RtcTransport" attribute>onpendingpacketsreceived</dfn>
+:: Fired when there are new received packets to retrieve.
+
+: <dfn for="RtcTransport" attribute>onerror</dfn>
+:: Fired on buffer overflows (sent info, feedback, or receive buffers).
+
+: <dfn for="RtcTransport" attribute>onfeedbacksent</dfn>
+:: Fired when the transport automatically generates and sends protocol-level feedback.
 
 ## Methods ## {#rtctransport-methods}
 
-<dl dfn-for="RTCTransport">
-</dl>
+: <dfn for="RtcTransport" method>setFormat(format)</dfn>
+:: Sets the format to be used. May only be called once. If called more than once, throw an `InvalidStateError`. The chosen format must be compatible with the network route controller configured in the constructor.
 
-# Objects
+: <dfn for="RtcTransport" method>sendPackets(packets, networkRoute)</dfn>
+:: Schedules packets to be sent on a specific route. The `id` in each packet must be strictly monotonically increasing. In general, packets SHOULD be sent according to their specified `sendTime`, but for performance reasons packets MAY be coalesced by the implementation. The `sendTime` must be monotonically increasing across all calls to `sendPackets`.
 
-## <dfn enum>RTCExplicitCongestionNotification</dfn> ## {#explicitcongestionnotification}
+Issue: Decide what to do if the `networkRoute` is/becomes non-viable.
+
+: <dfn for="RtcTransport" method>getPacketSentInfo()</dfn>
+:: Returns information about packets that have been sent. Clears the internal buffer of sent information. The application is notified via `onpendingpacketssentinfo` when new data is available, but only once per call to this method.
+
+: <dfn for="RtcTransport" method>getReceivedPacket()</dfn>
+:: Returns received packets. Clears the internal receive buffer. The application is notified via `onpendingpacketsreceived` when new data is available, but only once per call to this method.
+
+# ICE Controllers # {#ice-controllers}
+
+## RtcManualIceController ## {#rtcmanualicecontroller-section}
 
 <pre class="idl">
-enum RTCExplicitCongestionNotification {
-  // ECT = ECN-Capable Transport
-  "unset",  // AKA "Not-ECT";  Bits: 00
-  "scalable-congestion-not-experienced",  // AKA "ECT(1)" or "Scalable" or "L4S" ; Bits: 01
-  "classic-congestion-not-experienced", // AKA "ECT(0)" or "Classic" or "not L4S"; Bits: 10
-  "congestion-experienced" // AKA "CE" or "ECN-marked" or "marked"; Bits: 11
+interface RtcManualIceController {
+  undefined gatherHostCandidates();
+  Promise&lt;undefined&gt; gatherSrflxCandidates(optional IceServer iceServer);
+  Promise&lt;boolean&gt; refreshSrflxCandidate(LocalIceCandidate localCandidate);
+  Promise&lt;undefined&gt; gatherRelayCandidates(IceServer server, unsigned long requestedLifetimeInSeconds);
+  Promise&lt;unsigned long&gt; refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned long requestedLifetimeInSeconds);
+  IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidate remote);
+  Promise&lt;IceProbeResult&gt; probeCandidatePair(IceCandidatePair candidatePair);
+  attribute EventHandler oncandidategathered;
+  attribute EventHandler oncandidateremoved;
+  attribute EventHandler onmaxpayloadsizeupdate;
+  attribute EventHandler onerror;
 };
 </pre>
 
-# Privacy and security considerations # {#privacy}
+: <dfn for="RtcManualIceController" method>gatherHostCandidates()</dfn>
+:: Will continuously gather host candidates.
 
-## Confidentiality of Communications ## {#confidentiality}
+: <dfn for="RtcManualIceController" method>gatherSrflxCandidates(iceServer)</dfn>
+:: Gathers server reflexive candidates.
 
-## State Persistence ## {#state-persistence}
+: <dfn for="RtcManualIceController" method>refreshSrflxCandidate(localCandidate)</dfn>
+:: Sends a STUN ping to the IceServer used to discover this candidate, used to keep the candidate (NAT binding) alive. Returns a boolean indicating whether a successful STUN response was received or not.
 
-## Protocol Security ## {#protocol-security}
+: <dfn for="RtcManualIceController" method>gatherRelayCandidates(server, requestedLifetimeInSeconds)</dfn>
+:: Gathers relay candidates.
 
-## Fingerprinting and Tracking ## {#fingerprinting}
+: <dfn for="RtcManualIceController" method>refreshRelayCandidate(relayCandidate, requestedLifetimeInSeconds)</dfn>
+:: Sends a STUN packet with a LIFETIME attribute included, used to extend the TURN allocation. Returns the actual lifetime granted by the server.
 
-# Examples # {#examples}
+: <dfn for="RtcManualIceController" method>createCandidatePair(local, remote)</dfn>
+:: Creates an IceCandidatePair that represents a possible network route.
 
-See the [explainer document](https://github.com/w3c/webrtc-rtptransport/blob/main/explainer.md#code-examples).
+: <dfn for="RtcManualIceController" method>probeCandidatePair(candidatePair)</dfn>
+:: Probes the candidate pair to check if it's (still) viable and what the RTT is.
 
-# Acknowledgements #  {#acknowledgements}
-The editors wish to thank the WEBRTC Working Group chairs and Team Contact for their support.
+: <dfn for="RtcManualIceController" attribute>oncandidategathered</dfn>
+:: Fired when a local candidate has been found.
+
+: <dfn for="RtcManualIceController" attribute>oncandidateremoved</dfn>
+:: Fired when a local candidate has been removed.
+
+: <dfn for="RtcManualIceController" attribute>onmaxpayloadsizeupdate</dfn>
+:: Fired when the max payload size of some IceCandidatePair is updated.
+
+: <dfn for="RtcManualIceController" attribute>onerror</dfn>
+:: Fired on candidate gathering errors.
+
+
+## RtcAutomaticIceController ## {#rtcautomaticicecontroller-section}
+
+<pre class="idl">
+interface RtcAutomaticIceController {
+  undefined SetIceServers(sequence&lt;IceServer&gt; servers);
+  undefined gatherCandidates();
+  undefined AddRemoteCandidate(RemoteIceCandidate remoteCandidate);
+  attribute EventHandler oncandidategathered;
+  attribute EventHandler oncandidateremoved;
+  attribute EventHandler onmaxpayloadsizeupdate;
+  attribute EventHandler oncandidatepairupdated;
+  attribute EventHandler onerror;
+};
+</pre>
+
+: <dfn for="RtcAutomaticIceController" method>SetIceServers(servers)</dfn>
+:: Sets the ICE servers used by the controller.
+
+: <dfn for="RtcAutomaticIceController" method>gatherCandidates()</dfn>
+:: Starts the continuous gathering of candidates.
+
+: <dfn for="RtcAutomaticIceController" method>AddRemoteCandidate(remoteCandidate)</dfn>
+:: Adds a candidate discovered from the remote peer.
+
+: <dfn for="RtcAutomaticIceController" attribute>oncandidategathered</dfn>
+:: Fired when a local candidate has been found.
+
+: <dfn for="RtcAutomaticIceController" attribute>oncandidateremoved</dfn>
+:: Fired when a local candidate has been removed.
+
+: <dfn for="RtcAutomaticIceController" attribute>onmaxpayloadsizeupdate</dfn>
+:: Fired when the max payload size is updated.
+
+: <dfn for="RtcAutomaticIceController" attribute>oncandidatepairupdated</dfn>
+:: Fired whenever a new IceCandidatePair has been selected.
+
+: <dfn for="RtcAutomaticIceController" attribute>onerror</dfn>
+:: Fired on candidate gathering errors.
+
+# Helper Types # {#helper-types}
+
+## RtcTransportConfig ## {#rtctransportconfig}
+<pre class="idl">
+dictionary RtcTransportConfig {
+  DOMString name;
+  RtcNetworkRouteControllerType transportControllerType;
+};
+</pre>
+: <dfn for="RtcTransportConfig" dict-member>name</dfn>
+:: A name useful for debugging/devtools.
+
+: <dfn for="RtcTransportConfig" dict-member>transportControllerType</dfn>
+:: Determines the ICE controller type.
+
+## RtcPacketToSend ## {#rtcpackettosend}
+<pre class="idl">
+dictionary RtcPacketToSend {
+  long long id;
+  ArrayBuffer data;
+  DOMHighResTimeStamp sendTime;
+};
+</pre>
+: <dfn for="RtcPacketToSend" dict-member>id</dfn>
+:: Monotonically increasing packet ID.
+
+: <dfn for="RtcPacketToSend" dict-member>data</dfn>
+:: The byte buffer to be sent.
+
+: <dfn for="RtcPacketToSend" dict-member>sendTime</dfn>
+:: The timestamp describing when the packet should be put on the wire.
+
+## RtcPacketSentInfo ## {#rtcpacketsentinfo}
+<pre class="idl">
+dictionary RtcPacketSentInfo {
+  long long id;
+  long long packetSizeBytes;
+  DOMHighResTimeStamp sendTime;
+};
+</pre>
+: <dfn for="RtcPacketSentInfo" dict-member>id</dfn>
+:: The ID of the packet.
+
+: <dfn for="RtcPacketSentInfo" dict-member>packetSizeBytes</dfn>
+:: The size of the packet in bytes.
+
+: <dfn for="RtcPacketSentInfo" dict-member>sendTime</dfn>
+:: The actual timestamp that the packet was put on the wire.
+
+## RtcPacketReceived ## {#rtcpacketreceived}
+<pre class="idl">
+dictionary RtcPacketReceived {
+  ArrayBuffer data;
+  DOMHighResTimeStamp receiveTime;
+  RtcNetworkRoute networkRoute;
+};
+</pre>
+: <dfn for="RtcPacketReceived" dict-member>data</dfn>
+:: The byte buffer received.
+
+: <dfn for="RtcPacketReceived" dict-member>receiveTime</dfn>
+:: The timestamp of packet receipt.
+
+: <dfn for="RtcPacketReceived" dict-member>networkRoute</dfn>
+:: The route the packet arrived on.
+
+## IceServer ## {#iceserver}
+<pre class="idl">
+dictionary IceServer {
+ DOMString url;
+ DOMString username;
+ DOMString credentials;
+};
+</pre>
+: <dfn for="IceServer" dict-member>url</dfn>
+:: The URL of the ICE server.
+
+: <dfn for="IceServer" dict-member>username</dfn>
+:: The username used for credential verification.
+
+: <dfn for="IceServer" dict-member>credentials</dfn>
+:: The credentials for authentication.
+
+## IceCandidateType ## {#icecandidatetype}
+<pre class="idl">
+enum IceCandidateType {
+  "host",
+  "srflx",
+  "prflx",
+  "relay"
+};
+</pre>
+: <dfn for="IceCandidateType" enum-value>"host"</dfn>
+:: Host candidate.
+
+: <dfn for="IceCandidateType" enum-value>"srflx"</dfn>
+:: Server reflexive candidate.
+
+: <dfn for="IceCandidateType" enum-value>"prflx"</dfn>
+:: Peer reflexive candidate.
+
+: <dfn for="IceCandidateType" enum-value>"relay"</dfn>
+:: Relay candidate.
+
+## LocalIceCandidate ## {#localicecandidate-section}
+<pre class="idl">
+interface LocalIceCandidate {
+  readonly attribute DOMString ufrag;
+  readonly attribute DOMString pwd;
+  readonly attribute DOMString address;
+  readonly attribute unsigned short port;
+  readonly attribute IceCandidateType type;
+  readonly attribute unsigned long networkCost;
+};
+</pre>
+: <dfn for="LocalIceCandidate" attribute>ufrag</dfn>
+:: ICE user fragment.
+
+: <dfn for="LocalIceCandidate" attribute>pwd</dfn>
+:: ICE password.
+
+: <dfn for="LocalIceCandidate" attribute>address</dfn>
+:: IP Address of the candidate.
+
+: <dfn for="LocalIceCandidate" attribute>port</dfn>
+:: Port of the candidate.
+
+: <dfn for="LocalIceCandidate" attribute>type</dfn>
+:: The candidate type.
+
+: <dfn for="LocalIceCandidate" attribute>networkCost</dfn>
+:: The costs associated with network route utilization.
+
+## RemoteIceCandidate ## {#remoteicecandidate}
+<pre class="idl">
+dictionary RemoteIceCandidate {
+  required DOMString ufrag;
+  required DOMString pwd;
+  required DOMString address;
+  required unsigned short port;
+  required IceCandidateType type;
+  unsigned long networkCost;
+};
+</pre>
+: <dfn for="RemoteIceCandidate" dict-member>ufrag</dfn>
+:: Remote ICE user fragment.
+
+: <dfn for="RemoteIceCandidate" dict-member>pwd</dfn>
+:: Remote ICE password.
+
+: <dfn for="RemoteIceCandidate" dict-member>address</dfn>
+:: Remote IP Address of the candidate.
+
+: <dfn for="RemoteIceCandidate" dict-member>port</dfn>
+:: Remote Port of the candidate.
+
+: <dfn for="RemoteIceCandidate" dict-member>type</dfn>
+:: The remote candidate type.
+
+: <dfn for="RemoteIceCandidate" dict-member>networkCost</dfn>
+:: The remote costs associated with network route utilization.
+
+## IceCandidatePair ## {#icecandidatepair-section}
+<pre class="idl">
+interface IceCandidatePair {
+  readonly attribute LocalIceCandidate localCandidate;
+  readonly attribute RemoteIceCandidate remoteCandidate;
+};
+</pre>
+: <dfn for="IceCandidatePair" attribute>localCandidate</dfn>
+:: Local candidate component.
+
+: <dfn for="IceCandidatePair" attribute>remoteCandidate</dfn>
+:: Remote candidate component.
+
+## IceCandidateGatheredEvent ## {#icecandidategatheredevent-section}
+<pre class="idl">
+interface IceCandidateGatheredEvent : Event {
+  readonly attribute (DOMString or IceServer or RemoteIceCandidate) source;
+  readonly attribute LocalIceCandidate candidate;
+  readonly attribute unsigned long networkCost;
+  readonly attribute unsigned long? allocationLifetime;
+};
+</pre>
+: <dfn for="IceCandidateGatheredEvent" attribute>source</dfn>
+:: Gathering source descriptor.
+
+: <dfn for="IceCandidateGatheredEvent" attribute>candidate</dfn>
+:: The gathered candidate.
+
+: <dfn for="IceCandidateGatheredEvent" attribute>networkCost</dfn>
+:: Costs of the network utilized.
+
+: <dfn for="IceCandidateGatheredEvent" attribute>allocationLifetime</dfn>
+:: Lifetime of allocation granted by allocation servers.
+
+## IceProbeResult ## {#iceproberesult}
+<pre class="idl">
+dictionary IceProbeResult {
+  DOMHighResTimeStamp rtt;
+};
+</pre>
+: <dfn for="IceProbeResult" dict-member>rtt</dfn>
+:: Round-trip time discovered by the probe.
+
+## Type Definitions and Rest Enums ## {#typedefs-and-enums}
+
+<pre class="idl">
+typedef (RtcManualIceController or RtcAutomaticIceController) RtcNetworkRouteController;
+typedef IceCandidatePair RtcNetworkRoute;
+
+enum RtcTransportFormat {
+  "ICE-DTLS/V0"
+};
+
+enum RtcNetworkRouteControllerType {
+  "automaticIceController",
+  "manualIceController"
+};
+</pre>
+
+: <dfn export>RtcNetworkRouteController</dfn>
+:: Union type describing the underlying ICE route controller.
+
+: <dfn export>RtcNetworkRoute</dfn>
+:: Underlying network route identifier.
+
+: <dfn for="RtcTransportFormat" enum-value>"ICE-DTLS/V0"</dfn>
+:: Wire format utilizing ICE for connection establishment and DTLS as a wire format with [=Transport Header=] iteration version 0.
+
+: <dfn for="RtcNetworkRouteControllerType" enum-value>"automaticIceController"</dfn>
+:: Automatically managed ICE candidates route controller.
+
+: <dfn for="RtcNetworkRouteControllerType" enum-value>"manualIceController"</dfn>
+:: Manually managed ICE candidates route controller.
+
+# Security and Privacy Considerations # {#security}
+
+## Network Route Exposure ## {#sec-route-exposure}
+Exposing local IP addresses (including private ones) via ICE candidates poses a severe privacy risk. Mitigations should include permission prompts or limiting access to mDNS addresses unless permissions are explicitly granted by the user.
+
+## Circuit Breaker ## {#sec-circuit-breaker}
+The `ontransportstatus` event signals that a circuit-breaker mechanism is present. Implementations MUST shut down the transport if they detect excessive congestion or abusive behavior to protect the integrity of network paths.
+
+## Encryption ## {#sec-encryption}
+The transport MUST be encrypted. Chosen formats like `"ICE-DTLS/V0"` mandate explicit full-time encryption in flight. The specification requires full secure transport.
+
+## Buffer Overflows ## {#sec-buffers}
+The `onerror` event mitigates buffer overflows across implementation tiers. Limits must be defined to guarantee bounds on memory allocations, preventing standard memory-exhaustion vectors.
