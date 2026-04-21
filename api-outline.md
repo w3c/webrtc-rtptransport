@@ -2,6 +2,7 @@
 
 STATUS: working draft
 ```javascript
+[Exposed=Window,Worker]
 interface RtcTransport {
   // Should the user be able to add/remove iceServers after the transport has
   // been created?
@@ -11,20 +12,20 @@ interface RtcTransport {
   // NOTE: Negotiation of wire formats exist for the purpose of evolving the
   //       wire format, and the protocol if needed. Older formats should be
   //       considered deprecated and will be removed after some time.
-  readonly attribute sequence<DOMString> supportedFormats;
+  readonly attribute FrozenArray<RtcTransportFormat> supportedFormats;
 
   // NOTE: A function like `setFormat` implies that the app decides on the wire
   //       format. May only be called once.
   // NOTE: The reason for not setting it in the ctor is so that the user can
   //       start collecting candidates before signaling with the remote has
   //       happened.
-  void setFormat(DOMString wireFormat);
+  undefined setFormat(RtcTransportFormat wireFormat);
 
   // Send packets according to their send timestamps on the given route.
   // TODO: Exact behavior needs to be specified for what should happen if the
   //       networkRoute is non-viable when packets are scheduled, or if it
   //       becomes non-viable before the scheduled send time.
-  void sendPackets(sequence<RtcPacketToSend> packets, RtcNetworkRoute networkRoute);
+  undefined sendPackets(sequence<RtcPacketToSend> packets, RtcNetworkRoute networkRoute);
 
   // The type depends on which `RtcNetworkRouteControllerType` that was given in
   // the constructor.
@@ -75,12 +76,13 @@ interface RtcTransport {
 
 A manual ICE controller API
 ```javascript
+[Exposed=Window,Worker]
 interface RtcManualIceController {
   // Will continuously gather host candidates.
-  void gatherHostCandidates();
+  undefined gatherHostCandidates();
 
   // Gathers srflx candidates.
-  Promise<void> gatherSrflxCandidates(IceServer iceServer);
+  Promise<undefined> gatherSrflxCandidates(IceServer iceServer);
   // Sends a STUN ping to the IceServer used to discover this candidate, used
   // to keep the candidate (NAT binding) alive. Returns a boolean indicating
   // whether a successful STUN response was received or not.
@@ -89,10 +91,10 @@ interface RtcManualIceController {
   Promise<boolean> refreshSrflxCandidate(LocalIceCandidate localCandidate);
 
   // Gathers relay candidates.
-  Promise<void> gatherRelayCandidates(IceServer server, unsigned requestedLifetimeInSeconds);
+  Promise<undefined> gatherRelayCandidates(IceServer server, unsigned long requestedLifetimeInSeconds);
   // Sends a STUN packet with a LIFETIME attribute included, used to extend the
   // TURN allocation. Returns the actual lifetime granted by the server.
-  Promise<unsigned> refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned requestedLifetimeInSeconds);
+  Promise<unsigned long> refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned long requestedLifetimeInSeconds);
 
   // Creates an IceCandidatePair that represents a possible network route.
   IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidate remote);
@@ -118,17 +120,17 @@ interface RtcManualIceController {
   //   Should we return some value indicating that the candidate changed/is
   //   obsolete?
 };
-
 ```
 
 An automatic ICE controller API
 ```javascript
+[Exposed=Window,Worker]
 interface RtcAutomaticIceController {
-  void SetIceServers(sequence<IceServer> servers);
+  undefined SetIceServers(sequence<IceServer> servers);
 
-  void gatherCandidates();
+  undefined gatherCandidates();
 
-  void AddRemoteCandidate(RemoteIceCandidate remoteCandidate);
+  undefined AddRemoteCandidate(RemoteIceCandidate remoteCandidate);
 
   // Triggers when a local candidate has been found (IceCandidateGatheredEvent). 
   attribute EventHandler oncandidategathered;
@@ -151,53 +153,56 @@ Various helper types
 
 ```javascript
 typedef (RtcManualIceController or RtcAutomaticIceController) RtcNetworkRouteController;
-typedef (IceCandidatePair) RtcNetworkRoute;
+typedef IceCandidatePair RtcNetworkRoute;
 
 dictionary IceServer {
- DOMString url;
- DOMString username;
- DOMString credentials;
+  required DOMString url;
+  required DOMString username;
+  required DOMString credentials;
 };
 
 enum IceCandidateType {
-  host,
-  srflx,
-  prflx,
-  relay,
+  "host",
+  "srflx",
+  "prflx",
+  "relay",
 };
 
+[Exposed=Window,Worker]
 interface LocalIceCandidate {
-  readonly DOMString ufrag;
-  readonly DOMString pwd;
-  readonly DOMString address;
-  readonly unsigned port;
-  readonly IceCandidateType type;
-  readonly unsigned networkCost;
-};
+  readonly attribute DOMString ufrag;
+  readonly attribute DOMString pwd;
+  readonly attribute DOMString address;
+  readonly attribute unsigned short port;
+  readonly attribute IceCandidateType type;
+  readonly attribute unsigned short networkCost;
+}; 
 
 dictionary RemoteIceCandidate {
   required DOMString ufrag;
   required DOMString pwd;
   required DOMString address;
-  required unsigned port;
+  required unsigned short port;
   required IceCandidateType type;
-  unsigned networkCost;
+  unsigned short networkCost;
 };
 
+[Exposed=Window,Worker]
 interface IceCandidatePair {
-  readonly LocalIceCandidate localCandidate;
-  readonly RemoteIceCandidate remoteCandidate;
+  readonly attribute LocalIceCandidate localCandidate;
+  // TODO: Invalid IDL, a dictionary can not be an attribute.
+  readonly attribute RemoteIceCandidate remoteCandidate;
 };
 
 enum RtcNetworkRouteControllerType {
-  automaticIceController,
-  manualIceController,
+  "automaticIceController",
+  "manualIceController",
 };
 
 dictionary RtcTransportConfig {
   // A name could be useful for debugging/devtools.
-  DOMString name;
-  RtcNetworkRouteControllerType transportControllerType;
+  required DOMString name;
+  required RtcNetworkRouteControllerType transportControllerType;
   // Certificates?
 };
 
@@ -230,14 +235,17 @@ dictionary RtcPacketReceived {
   RtcNetworkRoute networkRoute;
 };
 
-dictionary IceCandidateGatheredEvent {
+[Exposed=Window,Worker]
+interface IceCandidateGatheredEvent : Event {
   // Either a string ("host"), or an IceServer (the one passed to
   // gatherCandidates), or an IceCandidate (the remote peer if prflx).
-  readonly (DOMString or IceServer or IceCandidate) source;
-  readonly LocalIceCandidate candidate;
-  readonly unsigned networkCost;
+  // TODO: Invalid IDL: A dictionary (IceServer, IceCandidate) can not be an
+  // attribute.
+  readonly attribute (DOMString or IceServer or IceCandidate) source;
+  readonly attribute LocalIceCandidate candidate;
+  readonly attribute unsigned long networkCost;
 
   // Only set if this is a relay candidate.
-  readonly unsigned? allocationLifetime;
-}
+  readonly attribute unsigned long? allocationLifetime;
+};
 ```
