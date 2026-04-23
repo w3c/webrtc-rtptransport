@@ -170,45 +170,6 @@ enum RtcTransportFormat {
   "DTLS/V0",
 };
 
-dictionary IceServer {
-  required DOMString url;
-  required DOMString username;
-  required DOMString credentials;
-};
-
-enum IceCandidateType {
-  "host",
-  "srflx",
-  "prflx",
-  "relay",
-};
-
-[Exposed=Window,Worker]
-interface LocalIceCandidate {
-  readonly attribute DOMString ufrag;
-  readonly attribute DOMString pwd;
-  readonly attribute DOMString address;
-  readonly attribute unsigned short port;
-  readonly attribute IceCandidateType type;
-  readonly attribute unsigned short networkCost;
-}; 
-
-dictionary RemoteIceCandidate {
-  required DOMString ufrag;
-  required DOMString pwd;
-  required DOMString address;
-  required unsigned short port;
-  required IceCandidateType type;
-  unsigned short networkCost;
-};
-
-[Exposed=Window,Worker]
-interface IceCandidatePair {
-  readonly attribute LocalIceCandidate localCandidate;
-  // TODO: Invalid IDL, a dictionary can not be an attribute.
-  readonly attribute RemoteIceCandidate remoteCandidate;
-};
-
 enum RtcNetworkRouteControllerType {
   "automaticIceController",
   "manualIceController",
@@ -248,6 +209,50 @@ dictionary RtcPacketReceived {
   DOMHighResTimeStamp receiveTime;
 
   RtcNetworkRoute networkRoute;
+};
+
+```
+
+Various ICE related helper types
+
+```javascript
+dictionary IceServer {
+  required DOMString url;
+  required DOMString username;
+  required DOMString credentials;
+};
+
+enum IceCandidateType {
+  "host",
+  "srflx",
+  "prflx",
+  "relay",
+};
+
+[Exposed=Window,Worker]
+interface LocalIceCandidate {
+  readonly attribute DOMString ufrag;
+  readonly attribute DOMString pwd;
+  readonly attribute DOMString address;
+  readonly attribute unsigned short port;
+  readonly attribute IceCandidateType type;
+  readonly attribute unsigned short networkCost;
+}; 
+
+dictionary RemoteIceCandidate {
+  required DOMString ufrag;
+  required DOMString pwd;
+  required DOMString address;
+  required unsigned short port;
+  required IceCandidateType type;
+  unsigned short networkCost;
+};
+
+[Exposed=Window,Worker]
+interface IceCandidatePair {
+  readonly attribute LocalIceCandidate localCandidate;
+  // TODO: Invalid IDL, a dictionary can not be an attribute.
+  readonly attribute RemoteIceCandidate remoteCandidate;
 };
 
 [Exposed=Window,Worker]
