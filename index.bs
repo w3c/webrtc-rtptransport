@@ -23,6 +23,9 @@ Markup Shorthands: css no, markdown yes, dfn yes
 
 <pre class=link-defaults>
 spec:webidl; type:dfn; text:resolve
+spec:infra; type:dfn; text:enqueue
+spec:infra; type:dfn; text:dequeue
+spec:infra; type:dfn; text:list
 </pre>
 <pre class=biblio>
 {
@@ -94,20 +97,24 @@ specification uses that specification and terminology.
 : <dfn export>Circuit Breaker</dfn>
 :: A mechanism used to protect the network by detecting and stoping abusive behavior.
 
-: <dfn export>Transport Format</dfn>
-:: A combination of a wire format and a [=Transport Header=].
-
 : <dfn export>Network Route</dfn>
 :: A specific route between a local and a remote peer.
+
+: <dfn export>Transport Format</dfn>
+:: A combination of a wire format and a [=Transport Header=].
 
 : <dfn export>Transport Header</dfn>
 :: A transport level header included in packets that carries feedback information from the remote peer, used in conjuction with the [=Circuit Breaker=] to detect and prevent abusive network behavior.
 
+: <dfn export>Writable</dfn>
+:: A [=Network Route=] is considered **Writable** when it has been verified that the remote peer can successfully receive packets over that specific [=Network Route=].
+
 # The `RtcTransport` Interface # {#rtctransport-interface}
 
 <pre class="idl">
+[Exposed=(Window,Worker)]
 interface RtcTransport {
-  constructor(optional RtcTransportConfig config);
+  constructor(RtcTransportConfig config);
   static readonly attribute FrozenArray&lt;RtcTransportFormat&gt; supportedFormats;
   readonly attribute RtcNetworkRouteController networkRouteController;
   attribute EventHandler ontransportstatus;
@@ -117,6 +124,8 @@ interface RtcTransport {
   attribute EventHandler onfeedbacksent;
   undefined setFormat(RtcTransportFormat format);
   undefined sendPackets(sequence&lt;RtcPacketToSend&gt; packets, RtcNetworkRoute networkRoute);
+  undefined setRemoteFingerprints(sequence&lt;ArrayBuffer&gt; fingerprint);
+  Promise&lt;boolean&gt; establishEncryption(RtcNetworkRoute networkRoute);
   sequence&lt;RtcPacketSentInfo&gt; getPacketSentInfo();
   sequence&lt;RtcPacketReceived&gt; getReceivedPacket();
 };
@@ -144,23 +153,46 @@ An {{RtcTransport}} object has the following internal slots.
   </tr>
   <tr>
    <td><dfn>`[[PendingSendPackets]]`</dfn>
-   <td class="non-normative">An internal queue for packets that are scheduled to be sent.
+   <td class="non-normative">A queue for packets that are scheduled to be sent.
   </tr>
   <tr>
    <td><dfn>`[[PendingSentInfo]]`</dfn>
-   <td class="non-normative">An internal queue for packet sent info.
+   <td class="non-normative">A queue for information about sent packets.
   </tr>
   <tr>
    <td><dfn>`[[PendingReceivedPackets]]`</dfn>
-   <td class="non-normative">An internal queue for received packets.
+   <td class="non-normative">A queue for received packets.
+  </tr>
+  <tr>
+   <td><dfn>`[[EncryptionContext]]`</dfn>
+   <td class="non-normative">The established encryption context.
+  </tr>
+  <tr>
+   <td><dfn>`[[RemoteFingerprints]]`</dfn>
+   <td class="non-normative">A list of fingerprints of the remote peer's certificates.
+  </tr>
+  <tr>
+   <td><dfn>`[[LastScheduledPacketInfo]]`</dfn>
+   <td class="non-normative">The ID and send time of the last successfully scheduled packet.
   </tr>
  </tbody>
 </table>
 
 ## Constructor ## {#rtctransport-constructor}
 
-: <dfn for="RtcTransport" method>constructor(config)</dfn>
-:: Initializes a new `RtcTransport` instance. The `config` determines the type of network route controller used.
+: <dfn constructor for="RtcTransport">constructor(config)</dfn>
+:: When the {{RtcTransport/constructor()}} constructor is invoked, the user agent MUST run the following steps:
+    1. Let |transport| be a new {{RtcTransport}} object.
+    2. Set |transport|'s {{RtcTransport/[[Format]]}} internal slot to `undefined`.
+    3. Set |transport|'s {{RtcTransport/[[PendingSendPackets]]}} internal slot to a new empty [=queue=].
+    4. Set |transport|'s {{RtcTransport/[[PendingSentInfo]]}} internal slot to a new empty [=queue=].
+    5. Set |transport|'s {{RtcTransport/[[PendingReceivedPackets]]}} internal slot to a new empty [=queue=].
+    6. Set |transport|'s {{RtcTransport/[[EncryptionContext]]}} internal slot to `undefined`.
+    7. Set |transport|'s {{RtcTransport/[[RemoteFingerprints]]}} internal slot to `undefined`.
+    8. Set |transport|'s {{RtcTransport/[[LastScheduledPacketInfo]]}} internal slot to `undefined`.
+    9. If |config|'s {{RtcTransportConfig/transportControllerType}} member is {{RtcNetworkRouteControllerType/"automaticIceController"}}, set |transport|'s {{RtcTransport/[[RouteController]]}} internal slot to a new {{RtcAutomaticIceController}} object.
+    10. If |config|'s {{RtcTransportConfig/transportControllerType}} member is {{RtcNetworkRouteControllerType/"manualIceController"}}, set |transport|'s {{RtcTransport/[[RouteController]]}} internal slot to a new {{RtcManualIceController}} object.
+    11. Return |transport|.
 
 ## Attributes ## {#rtctransport-attributes}
 
@@ -188,27 +220,96 @@ An {{RtcTransport}} object has the following internal slots.
 ## Methods ## {#rtctransport-methods}
 
 : <dfn for="RtcTransport" method>setFormat(format)</dfn>
-:: Sets the format to be used. May only be called once. If called more than once, throw an `InvalidStateError`. The chosen format must be compatible with the network route controller configured in the constructor.
+:: When the {{RtcTransport/setFormat(format)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |transport| be the {{RtcTransport}} object on which the method was invoked.
+    2. If |transport|'s {{RtcTransport/[[Format]]}} internal slot is not `undefined`, throw an {{InvalidStateError}}.
+    3. If |format| is the {{RtcTransportFormat}} value `"ICE-DTLS/V0"` and |transport|'s {{RtcTransport/[[RouteController]]}} internal slot is neither an {{RtcAutomaticIceController}} nor an {{RtcManualIceController}} object, throw a {{NotSupportedError}}.
+        <p class="note">In this version of the specification, the only supported {{RtcTransportFormat}} is `"ICE-DTLS/V0"`, which is compatible with all available route controllers ({{RtcAutomaticIceController}} and {{RtcManualIceController}}).</p>
+    4. Set |transport|'s {{RtcTransport/[[Format]]}} internal slot to |format|.
 
 : <dfn for="RtcTransport" method>sendPackets(packets, networkRoute)</dfn>
-:: Schedules packets to be sent on a specific route. The `id` in each packet must be strictly monotonically increasing. In general, packets SHOULD be sent according to their specified `sendTime`, but for performance reasons packets MAY be coalesced by the implementation. The `sendTime` must be monotonically increasing across all calls to `sendPackets`.
+:: When the {{RtcTransport/sendPackets(packets, networkRoute)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |transport| be the {{RtcTransport}} object on which the method was invoked.
+    2. If |transport|'s {{RtcTransport/[[EncryptionContext]]}} internal slot is `undefined`, throw an {{InvalidStateError}}.
+    3. If |networkRoute| is not [=Writable=], throw an exception.
+    4. If |packets| [=list/is empty=], return.
+    5. Let |lastInfo| be |transport|'s {{RtcTransport/[[LastScheduledPacketInfo]]}} internal slot.
+    6. [=list/iterate|For each=] |packet| in |packets|:
+        1. If |packet| is the first item in |packets|:
+            1. If |lastInfo| is not `undefined`:
+                1. If |packet|'s {{RtcPacketToSend/id}} is less than or equal to |lastInfo|'s ID, throw a {{RangeError}}.
+                2. If |packet|'s {{RtcPacketToSend/sendTime}} is less than |lastInfo|'s send time, throw a {{RangeError}}.
+        2. Otherwise:
+            1. Let |previousPacket| be the item in |packets| immediately preceding |packet|.
+            2. If |packet|'s {{RtcPacketToSend/id}} is less than or equal to |previousPacket|'s {{RtcPacketToSend/id}}, throw a {{RangeError}}.
+            3. If |packet|'s {{RtcPacketToSend/sendTime}} is less than |previousPacket|'s {{RtcPacketToSend/sendTime}}, throw a {{RangeError}}.
+        3. Let |now| be the current high resolution time.
+        4. If |packet|'s {{RtcPacketToSend/sendTime}} is greater than |now| + 100ms, throw a {{RangeError}}.
+    7. [=Enqueue=] all items in |packets| into |transport|'s {{RtcTransport/[[PendingSendPackets]]}} queue.
+    8. Let |lastPacket| be the last item in |packets|.
+    9. Set |transport|'s {{RtcTransport/[[LastScheduledPacketInfo]]}} to a new record containing |lastPacket|'s {{RtcPacketToSend/id}} as ID and |lastPacket|'s {{RtcPacketToSend/sendTime}} as send time.
 
-Issue: Decide what to do if the `networkRoute` is/becomes non-viable.
+Issue: What type of exceptions should be thrown when the various checks fail?
+
+Issue: What should the acceptable range for the send time be? What if the send time is in the past?
+
+Issue: Decide what to do if the `networkRoute` becomes non-writable before packets were scheduled for sending.
+
+Issue: Describe how sendPackets interacts with the circuit breaker.
+
+Issue: There should be some text describing how sending is done and what the expected behavior should be.
+
+: <dfn for="RtcTransport" method>setRemoteFingerprints(fingerprint)</dfn>
+:: When the {{RtcTransport/setRemoteFingerprints(fingerprint)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |transport| be the {{RtcTransport}} object on which the method was invoked.
+    2. If |transport|'s {{RtcTransport/[[RemoteFingerprints]]}} internal slot is not `undefined`, throw an {{InvalidStateError}}.
+    3. Set |transport|'s {{RtcTransport/[[RemoteFingerprints]]}} internal slot to |fingerprint|.
+
+Issue: Should there be any validation of the fingerprints? Is there a particular standard we expect them to adhere to?
+
+: <dfn for="RtcTransport" method>establishEncryption(networkRoute)</dfn>
+:: When the {{RtcTransport/establishEncryption(networkRoute)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |transport| be the {{RtcTransport}} object on which the method was invoked.
+    2. Let |p| be [=a new promise=].
+    3. If |transport|'s {{RtcTransport/[[EncryptionContext]]}} internal slot is not `undefined`, [=resolve=] |p| with `true` and return |p|.
+    4. If |transport|'s {{RtcTransport/[[RemoteFingerprints]]}} internal slot is `undefined`, [=reject=] |p| with an {{InvalidStateError}} and return |p|.
+    5. If |networkRoute| is not [=writable=], [=resolve=] |p| with `false` and return |p|.
+    6. Run the following steps [=in parallel=]:
+        1. Start or continue the encryption establishment process over |networkRoute| to establish a secure transport connection.
+        2. As part of the encryption establishment process, the user agent MUST verify that the certificate presented by the remote peer matches one of the fingerprints stored in |transport|'s {{RtcTransport/[[RemoteFingerprints]]}} internal slot. If the verification fails, the encryption establishment process fails.
+            <p class="note">The specific encryption mechanism depends on the configured {{RtcTransportFormat}}. For example, for the {{RtcTransportFormat}} value `"ICE-DTLS/V0"`, this corresponds to performing a DTLS handshake and verifying the remote certificate against the fingerprints.</p>
+        3. If the encryption establishment process completes successfully:
+            1. Set |transport|'s {{RtcTransport/[[EncryptionContext]]}} internal slot to the established encryption context.
+            2. [=Resolve=] |p| with `true`.
+        4. If the encryption establishment process fails or times out:
+            1. [=Resolve=] |p| with `false`.
+    7. Return |p|.
 
 : <dfn for="RtcTransport" method>getPacketSentInfo()</dfn>
-:: Returns information about packets that have been sent. Clears the internal buffer of sent information. The application is notified via `onpendingpacketssentinfo` when new data is available, but only once per call to this method.
+:: When the {{RtcTransport/getPacketSentInfo()}} method is invoked, the user agent MUST run the following steps:
+    1. Let |transport| be the {{RtcTransport}} object on which the method was invoked.
+    2. Let |result| be a new empty [=list=].
+    3. While |transport|'s {{RtcTransport/[[PendingSentInfo]]}} queue is not [=list/is empty|empty=]:
+        1. [=list/Append=] the result of [=dequeueing=] from |transport|'s {{RtcTransport/[[PendingSentInfo]]}} queue to |result|.
+    4. Return |result|.
 
 : <dfn for="RtcTransport" method>getReceivedPacket()</dfn>
-:: Returns received packets. Clears the internal receive buffer. The application is notified via `onpendingpacketsreceived` when new data is available, but only once per call to this method.
+:: When the {{RtcTransport/getReceivedPacket()}} method is invoked, the user agent MUST run the following steps:
+    1. Let |transport| be the {{RtcTransport}} object on which the method was invoked.
+    2. Let |result| be a new empty [=list=].
+    3. While |transport|'s {{RtcTransport/[[PendingReceivedPackets]]}} queue is not [=list/is empty|empty=]:
+        1. [=list/Append=] the result of [=dequeueing=] from |transport|'s {{RtcTransport/[[PendingReceivedPackets]]}} queue to |result|.
+    4. Return |result|.
 
 # ICE Controllers # {#ice-controllers}
 
 ## RtcManualIceController ## {#rtcmanualicecontroller-section}
 
 <pre class="idl">
+[Exposed=(Window,Worker)]
 interface RtcManualIceController {
   undefined gatherHostCandidates();
-  Promise&lt;undefined&gt; gatherSrflxCandidates(optional IceServer iceServer);
+  Promise&lt;undefined&gt; gatherSrflxCandidates(IceServer iceServer);
   Promise&lt;boolean&gt; refreshSrflxCandidate(LocalIceCandidate localCandidate);
   Promise&lt;undefined&gt; gatherRelayCandidates(IceServer server, unsigned long requestedLifetimeInSeconds);
   Promise&lt;unsigned long&gt; refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned long requestedLifetimeInSeconds);
@@ -258,6 +359,7 @@ interface RtcManualIceController {
 ## RtcAutomaticIceController ## {#rtcautomaticicecontroller-section}
 
 <pre class="idl">
+[Exposed=(Window,Worker)]
 interface RtcAutomaticIceController {
   undefined SetIceServers(sequence&lt;IceServer&gt; servers);
   undefined gatherCandidates();
@@ -299,8 +401,9 @@ interface RtcAutomaticIceController {
 ## RtcTransportConfig ## {#rtctransportconfig}
 <pre class="idl">
 dictionary RtcTransportConfig {
-  DOMString name;
-  RtcNetworkRouteControllerType transportControllerType;
+  required DOMString name;
+  required RtcNetworkRouteControllerType transportControllerType;
+  required sequence&lt;RTCCertificate&gt; certificates;
 };
 </pre>
 : <dfn for="RtcTransportConfig" dict-member>name</dfn>
@@ -308,6 +411,9 @@ dictionary RtcTransportConfig {
 
 : <dfn for="RtcTransportConfig" dict-member>transportControllerType</dfn>
 :: Determines the ICE controller type.
+
+: <dfn for="RtcTransportConfig" dict-member>certificates</dfn>
+:: The certificates to use for DTLS.
 
 ## RtcPacketToSend ## {#rtcpackettosend}
 <pre class="idl">
@@ -363,9 +469,9 @@ dictionary RtcPacketReceived {
 ## IceServer ## {#iceserver}
 <pre class="idl">
 dictionary IceServer {
- DOMString url;
- DOMString username;
- DOMString credentials;
+  required DOMString url;
+  required DOMString username;
+  required DOMString credentials;
 };
 </pre>
 : <dfn for="IceServer" dict-member>url</dfn>
@@ -400,13 +506,14 @@ enum IceCandidateType {
 
 ## LocalIceCandidate ## {#localicecandidate-section}
 <pre class="idl">
+[Exposed=(Window,Worker)]
 interface LocalIceCandidate {
   readonly attribute DOMString ufrag;
   readonly attribute DOMString pwd;
   readonly attribute DOMString address;
   readonly attribute unsigned short port;
   readonly attribute IceCandidateType type;
-  readonly attribute unsigned long networkCost;
+  readonly attribute unsigned short networkCost;
 };
 </pre>
 : <dfn for="LocalIceCandidate" attribute>ufrag</dfn>
@@ -435,7 +542,7 @@ dictionary RemoteIceCandidate {
   required DOMString address;
   required unsigned short port;
   required IceCandidateType type;
-  unsigned long networkCost;
+  unsigned short networkCost;
 };
 </pre>
 : <dfn for="RemoteIceCandidate" dict-member>ufrag</dfn>
@@ -458,6 +565,7 @@ dictionary RemoteIceCandidate {
 
 ## IceCandidatePair ## {#icecandidatepair-section}
 <pre class="idl">
+[Exposed=(Window,Worker)]
 interface IceCandidatePair {
   readonly attribute LocalIceCandidate localCandidate;
   readonly attribute RemoteIceCandidate remoteCandidate;
@@ -471,6 +579,7 @@ interface IceCandidatePair {
 
 ## IceCandidateGatheredEvent ## {#icecandidategatheredevent-section}
 <pre class="idl">
+[Exposed=(Window,Worker)]
 interface IceCandidateGatheredEvent : Event {
   readonly attribute (DOMString or IceServer or RemoteIceCandidate) source;
   readonly attribute LocalIceCandidate candidate;
