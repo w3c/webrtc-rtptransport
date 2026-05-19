@@ -2,7 +2,7 @@
 
 ## Problem and Motivation
 
-Today realtime communications and streaming technologies are converging within
+Real-time communications and streaming technologies are converging within
 ultra low latency use cases such as augmented reality/virtual reality,
 game streaming or live streaming with fanout. These use cases may involve
 peer-to-peer interactions traversing Network Address Translators (NATs)
@@ -31,20 +31,20 @@ Native applications can use raw UDP sockets, but those are not available on the
 web because they lack encryption, congestion control, and a mechanism for
 consent to send (to prevent DDoS attacks).
 
-To enable new use cases, we think it would be useful to provide an API to
-send and receive packets with encryption and congestion control. 
+To enable new use cases, this document proposes an API to
+send and receive packets with encryption and customizable congestion control. 
 
 ## Goals
 
 The RTCTransport API enables web applications to support: 
 
-- Custom payloads (ML-based audio codecs)
+- Custom payloads (such as ML-based audio codecs)
 - Custom packetization
 - Custom FEC 
 - Custom RTX
-- Custom Jitter Buffer 
-- Custom bandwidth estimate
-- Custom rate control (with built-in bandwidth estimate)
+- Custom jitter buffers
+- Custom bandwidth estimation
+- Custom rate control
 - Custom bitrate allocation
 - Packet forwarding
 
@@ -76,18 +76,15 @@ This enables the following WebRTC Extended Use Cases:
 
 ## API requirements
 
-Enable applications to do custom packetization/depacketization by enabling them to:
+Enable applications to:
 
-- Send packets
-- Receive packets
-- Access information about when packets are sent and how large they are.
-- Access information about when packet are not sent, and why.
-- Access information about when feedback is received, and what that feedback contains (such as acks, timestamps, and ECN/L4S bits)
+- Establish encrypted peer-to-peer connections
+- Send and receive packets over those connections
 - Efficient control of when packets are sent and injection of additonal padding packets, in order to do custom pacing and probing.
 - Do batch processing to run much less often than per-packet, to reduce overheads in high bandwidth situations, where packets are sent and received thousands of times per second.
 
 Complexities of sending and receiving packets other than these requirements are still handled by the User Agent, such
-as encryption and congestion control.
+as encryption.
 
 ## Examples
 
@@ -103,38 +100,32 @@ as encryption and congestion control.
 // TODO
 ```
 
-### Example 3: Send metadata (not RTP header extensions)
+### Example 3: Send custom NACK and RTX (not RTP/RTCP)
 
 ```javascript
 // TODO
 ```
 
-### Example 4: Send custom NACK and RTX (not RTP/RTCP)
+### Example 4: Send custom FEC
 
 ```javascript
 // TODO
 ```
 
-### Example 5: Send custom FEC
+### Example 5: Encode, packetize, and send using WebCodecs
 
 ```javascript
 // TODO
 ```
 
-### Example 6: Encode, packetize, and send using WebCodecs
-
-```javascript
-// TODO
-```
-
-### Example 7: Implement bandwidth estimation, bitrate allocation, and encoder rate control
+### Example 6: Implement bandwidth estimation, bitrate allocation, and encoder rate control
 
 ```javascript
 // TODO
 ```
 
 
-### Example 8: Send using specific send times (pacing)
+### Example 7: Send using specific send times (pacing)
 
 ```javascript
 // TODO
