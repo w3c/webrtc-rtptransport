@@ -7,6 +7,7 @@
     <title>Network Simulator</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <script src="googcc.js"></script>
+    <script src="greedycc.js"></script>
     <script src="circuit_breaker.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -74,7 +75,12 @@
         </div>
 
         <div class="config-section full-width">
-            <h3>GoogCC</h3>
+            <h3>Congestion Control</h3>
+            <div style="margin-bottom:10px;display:flex;gap:20px;align-items:center;">
+                <label style="font-weight:600;">Algorithm:</label>
+                <label><input type="radio" name="cc-type" value="googcc" checked> GoogCC</label>
+                <label><input type="radio" name="cc-type" value="greedy"> GreedyCC</label>
+            </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 24px;">
                 <div class="slider-row">
                     <label>Start Rate (kbps)</label>

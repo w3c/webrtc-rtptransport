@@ -18,11 +18,14 @@ function runSimulation(cfg) {
     const DRAIN_MS = 2000;
 
     // ---- Endpoint A (sends data via linkAB, receives data+feedback from linkBA) ----
-    const ccA = new GoogCcController({
+    const ccOpts = {
         startBitrateBps: cfg.startBitrateBps,
         minBitrateBps: 30_000,
         maxBitrateBps: cfg.maxBitrateBps,
-    });
+    };
+    const ccA = cfg.ccType === 'greedy'
+        ? new GreedyCcController(ccOpts)
+        : new GoogCcController(ccOpts);
     let bitrateA = cfg.startBitrateBps;
     let seqA = 0;
     let budgetA = 0;
@@ -35,11 +38,9 @@ function runSimulation(cfg) {
     let lastFeedbackFromA = -FEEDBACK_INTERVAL_MS;
 
     // ---- Endpoint B (sends data via linkBA, receives data+feedback from linkAB) ----
-    const ccB = new GoogCcController({
-        startBitrateBps: cfg.startBitrateBps,
-        minBitrateBps: 30_000,
-        maxBitrateBps: cfg.maxBitrateBps,
-    });
+    const ccB = cfg.ccType === 'greedy'
+        ? new GreedyCcController(ccOpts)
+        : new GoogCcController(ccOpts);
     let bitrateB = cfg.startBitrateBps;
     let seqB = 0;
     let budgetB = 0;
@@ -142,6 +143,32 @@ function runSimulation(cfg) {
                 }
                 seqB++;
             }
+
+            // 3b. GreedyCC retransmissions (extra packets beyond budget)
+            if (ccA.popRetransmit) {
+                let rtx, rtxCount = 0;
+                while ((rtx = ccA.popRetransmit()) && rtxCount < 20) {
+                    ccA.onSentPacket({ seqNum: seqA, sendTimeMs: now, sizeBytes: rtx.sizeBytes });
+                    const cbRes = cbAB.send({ type: 'data', seqNum: seqA }, rtx.sizeBytes, now);
+                    if (cbRes.allowed) {
+                        linkAB.enqueue(cbRes.packet, rtx.sizeBytes, now);
+                    }
+                    seqA++;
+                    rtxCount++;
+                }
+            }
+            if (ccB.popRetransmit) {
+                let rtx, rtxCount = 0;
+                while ((rtx = ccB.popRetransmit()) && rtxCount < 20) {
+                    ccB.onSentPacket({ seqNum: seqB, sendTimeMs: now, sizeBytes: rtx.sizeBytes });
+                    const cbRes = cbBA.send({ type: 'data', seqNum: seqB }, rtx.sizeBytes, now);
+                    if (cbRes.allowed) {
+                        linkBA.enqueue(cbRes.packet, rtx.sizeBytes, now);
+                    }
+                    seqB++;
+                    rtxCount++;
+                }
+            }
         }
 
         // 4. Generate & send feedback packets
@@ -219,6 +246,7 @@ function runSimulation(cfg) {
         ccB,
         cbAB,
         cbBA,
+        ccType: cfg.ccType,
         virtualTimeMs: endTime,
     };
 }
@@ -582,7 +610,9 @@ function val(id) {
 }
 
 function getConfig() {
+    const ccType = document.querySelector('input[name="cc-type"]:checked').value;
     return {
+        ccType,
         linkAB: {
             bitrateBps: val('linkab-bitrate') * 1000,
             maxQueueBytes: val('linkab-queue') * 1024,
@@ -619,8 +649,9 @@ document.getElementById('run-btn').addEventListener('click', () => {
 
             destroyAllCharts();
 
-            charts.ccA = buildCcChart('chart-cc-a', 'GoogCC: Endpoint A → B', result.bitrateLogA, cfg.linkAB.bitrateBps);
-            charts.ccB = buildCcChart('chart-cc-b', 'GoogCC: Endpoint B → A', result.bitrateLogB, cfg.linkBA.bitrateBps);
+            const ccLabel = result.ccType === 'greedy' ? 'GreedyCC' : 'GoogCC';
+            charts.ccA = buildCcChart('chart-cc-a', ccLabel + ': Endpoint A → B', result.bitrateLogA, cfg.linkAB.bitrateBps);
+            charts.ccB = buildCcChart('chart-cc-b', ccLabel + ': Endpoint B → A', result.bitrateLogB, cfg.linkBA.bitrateBps);
             charts.cbAB = buildCbChart('chart-cb-ab', 'Circuit Breaker: A → B', result.cbAB);
             charts.cbBA = buildCbChart('chart-cb-ba', 'Circuit Breaker: B → A', result.cbBA);
             charts.linkAB = buildLinkChart('chart-ab', 'Link A → B (queue)', result.linkAB);
