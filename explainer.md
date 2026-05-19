@@ -81,6 +81,8 @@ Enable applications to:
 - Establish encrypted peer-to-peer connections
 - Send and receive packets over those connections
 - Efficient control of when packets are sent and injection of additonal padding packets, in order to do custom pacing and probing.
+- Have as much information about packets as possible (times, sizes, ECN bits, etc)
+to do custom congestion control.
 - Do batch processing to run much less often than per-packet, to reduce overheads in high bandwidth situations, where packets are sent and received thousands of times per second.
 
 Complexities of sending and receiving packets other than these requirements are still handled by the User Agent, such
