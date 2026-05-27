@@ -134,9 +134,7 @@ An automatic ICE controller API
 ```javascript
 [Exposed=Window,Worker]
 interface RtcAutomaticIceController {
-  undefined SetIceServers(sequence<IceServer> servers);
-
-  undefined gatherCandidates();
+  undefined gatherCandidates(sequence<IceServer> servers);
 
   undefined AddRemoteCandidate(RemoteIceCandidate remoteCandidate);
 
