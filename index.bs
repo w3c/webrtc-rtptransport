@@ -484,6 +484,7 @@ dictionary IceServerInit {
 :: The credentials for authentication.
 
 <pre class="idl">
+[Exposed=(Window,Worker)]
 interface IceServer {
   readonly attribute DOMString url;
   readonly attribute DOMString username;
