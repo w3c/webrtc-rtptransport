@@ -90,7 +90,7 @@ interface RtcManualIceController {
   undefined gatherHostCandidates();
 
   // Gathers srflx candidates.
-  Promise<undefined> gatherSrflxCandidates(IceServer iceServer);
+  Promise<undefined> gatherSrflxCandidates(IceServerInit iceServer);
   // Sends a STUN ping to the IceServer used to discover this candidate, used
   // to keep the candidate (NAT binding) alive. Returns a boolean indicating
   // whether a successful STUN response was received or not.
@@ -99,7 +99,7 @@ interface RtcManualIceController {
   Promise<boolean> refreshSrflxCandidate(LocalIceCandidate localCandidate);
 
   // Gathers relay candidates.
-  Promise<undefined> gatherRelayCandidates(IceServer server, unsigned long requestedLifetimeInSeconds);
+  Promise<undefined> gatherRelayCandidates(IceServerInit server, unsigned long requestedLifetimeInSeconds);
   // Sends a STUN packet with a LIFETIME attribute included, used to extend the
   // TURN allocation. Returns the actual lifetime granted by the server.
   Promise<unsigned long> refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned long requestedLifetimeInSeconds);
@@ -134,7 +134,7 @@ An automatic ICE controller API
 ```javascript
 [Exposed=Window,Worker]
 interface RtcAutomaticIceController {
-  undefined SetIceServers(sequence<IceServer> servers);
+  undefined SetIceServers(sequence<IceServerInit> servers);
 
   undefined gatherCandidates();
 
@@ -216,11 +216,18 @@ dictionary RtcPacketReceived {
 Various ICE related helper types
 
 ```javascript
-dictionary IceServer {
+dictionary IceServerInit {
   required DOMString url;
   required DOMString username;
   required DOMString credentials;
 };
+
+[Exposed=Window,Worker]
+interface IceServer {
+  readonly attribute DOMString url;
+  readonly attribute DOMString username;
+  readonly attribute DOMString password;
+}; 
 
 enum IceCandidateType {
   "host",

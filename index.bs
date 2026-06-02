@@ -309,9 +309,9 @@ Issue: Should there be any validation of the fingerprints? Is there a particular
 [Exposed=(Window,Worker)]
 interface RtcManualIceController {
   undefined gatherHostCandidates();
-  Promise&lt;undefined&gt; gatherSrflxCandidates(IceServer iceServer);
+  Promise&lt;undefined&gt; gatherSrflxCandidates(IceServerInit iceServer);
   Promise&lt;boolean&gt; refreshSrflxCandidate(LocalIceCandidate localCandidate);
-  Promise&lt;undefined&gt; gatherRelayCandidates(IceServer server, unsigned long requestedLifetimeInSeconds);
+  Promise&lt;undefined&gt; gatherRelayCandidates(IceServerInit server, unsigned long requestedLifetimeInSeconds);
   Promise&lt;unsigned long&gt; refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned long requestedLifetimeInSeconds);
   IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidateInit remote);
   Promise&lt;IceProbeResult&gt; probeCandidatePair(IceCandidatePair candidatePair);
@@ -361,7 +361,7 @@ interface RtcManualIceController {
 <pre class="idl">
 [Exposed=(Window,Worker)]
 interface RtcAutomaticIceController {
-  undefined SetIceServers(sequence&lt;IceServer&gt; servers);
+  undefined SetIceServers(sequence&lt;IceServerInit&gt; servers);
   undefined gatherCandidates();
   undefined AddRemoteCandidate(RemoteIceCandidateInit remoteCandidate);
   attribute EventHandler oncandidategathered;
@@ -468,19 +468,35 @@ dictionary RtcPacketReceived {
 
 ## IceServer ## {#iceserver}
 <pre class="idl">
-dictionary IceServer {
+dictionary IceServerInit {
   required DOMString url;
   required DOMString username;
   required DOMString credentials;
 };
 </pre>
-: <dfn for="IceServer" dict-member>url</dfn>
+: <dfn for="IceServerInit" dict-member>url</dfn>
 :: The URL of the ICE server.
 
-: <dfn for="IceServer" dict-member>username</dfn>
+: <dfn for="IceServerInit" dict-member>username</dfn>
 :: The username used for credential verification.
 
-: <dfn for="IceServer" dict-member>credentials</dfn>
+: <dfn for="IceServerInit" dict-member>credentials</dfn>
+:: The credentials for authentication.
+
+<pre class="idl">
+interface IceServer {
+  readonly attribute DOMString url;
+  readonly attribute DOMString username;
+  readonly attribute DOMString credentials;
+};
+</pre>
+: <dfn for="IceServer" attribute>url</dfn>
+:: The URL of the ICE server.
+
+: <dfn for="IceServer" attribute>username</dfn>
+:: The username used for credential verification.
+
+: <dfn for="IceServer" attribute>credentials</dfn>
 :: The credentials for authentication.
 
 ## IceCandidateType ## {#icecandidatetype}
