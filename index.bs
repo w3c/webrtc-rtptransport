@@ -545,7 +545,27 @@ interface RemoteIceCandidate {
   readonly attribute IceCandidateType type;
   readonly attribute unsigned short networkCost;
 };
+</pre>
+: <dfn for="RemoteIceCandidate" attribute>ufrag</dfn>
+:: Remote ICE user fragment.
 
+: <dfn for="RemoteIceCandidate" attribute>pwd</dfn>
+:: Remote ICE password.
+
+: <dfn for="RemoteIceCandidate" attribute>address</dfn>
+:: Remote IP Address of the candidate.
+
+: <dfn for="RemoteIceCandidate" attribute>port</dfn>
+:: Remote Port of the candidate.
+
+: <dfn for="RemoteIceCandidate" attribute>type</dfn>
+:: The remote candidate type.
+
+: <dfn for="RemoteIceCandidate" attribute>networkCost</dfn>
+:: The remote costs associated with network route utilization.
+
+<pre class="idl">
+[Exposed=(Window,Worker)]
 dictionary RemoteIceCandidateInit {
   required DOMString ufrag;
   required DOMString pwd;
@@ -555,22 +575,24 @@ dictionary RemoteIceCandidateInit {
   unsigned short networkCost;
 };
 </pre>
-: <dfn for="RemoteIceCandidate" dict-member>ufrag</dfn>
+
+
+: <dfn for="RemoteIceCandidateInit" dict-member>ufrag</dfn>
 :: Remote ICE user fragment.
 
-: <dfn for="RemoteIceCandidate" dict-member>pwd</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>pwd</dfn>
 :: Remote ICE password.
 
-: <dfn for="RemoteIceCandidate" dict-member>address</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>address</dfn>
 :: Remote IP Address of the candidate.
 
-: <dfn for="RemoteIceCandidate" dict-member>port</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>port</dfn>
 :: Remote Port of the candidate.
 
-: <dfn for="RemoteIceCandidate" dict-member>type</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>type</dfn>
 :: The remote candidate type.
 
-: <dfn for="RemoteIceCandidate" dict-member>networkCost</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>networkCost</dfn>
 :: The remote costs associated with network route utilization.
 
 ## IceCandidatePair ## {#icecandidatepair-section}
