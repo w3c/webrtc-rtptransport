@@ -105,7 +105,7 @@ interface RtcManualIceController {
   Promise<unsigned long> refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned long requestedLifetimeInSeconds);
 
   // Creates an IceCandidatePair that represents a possible network route.
-  IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidate remote);
+  IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidateInit remote);
 
   // Probes the candidate pair to check if it's (still) viable and what the RTT is.
   Promise<IceProbeResult> probeCandidatePair(IceCandidatePair candidatePair);
@@ -138,7 +138,7 @@ interface RtcAutomaticIceController {
 
   undefined gatherCandidates();
 
-  undefined AddRemoteCandidate(RemoteIceCandidate remoteCandidate);
+  undefined AddRemoteCandidate(RemoteIceCandidateInit remoteCandidate);
 
   // Triggers when a local candidate has been found (IceCandidateGatheredEvent). 
   attribute EventHandler oncandidategathered;
@@ -239,7 +239,17 @@ interface LocalIceCandidate {
   readonly attribute unsigned short networkCost;
 }; 
 
-dictionary RemoteIceCandidate {
+[Exposed=Window,Worker]
+interface RemoteIceCandidate {
+  readonly attribute DOMString ufrag;
+  readonly attribute DOMString pwd;
+  readonly attribute DOMString address;
+  readonly attribute unsigned short port;
+  readonly attribute IceCandidateType type;
+  readonly attribute unsigned short networkCost;
+}; 
+
+dictionary RemoteIceCandidateInit {
   required DOMString ufrag;
   required DOMString pwd;
   required DOMString address;
