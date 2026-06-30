@@ -319,11 +319,11 @@ Issue: Should there be any validation of the fingerprints? Is there a particular
 [Exposed=(Window,Worker)]
 interface RtcManualIceController {
   undefined gatherHostCandidates();
-  Promise&lt;undefined&gt; gatherSrflxCandidates(IceServer iceServer);
+  Promise&lt;undefined&gt; gatherSrflxCandidates(IceServerInit iceServer);
   Promise&lt;boolean&gt; refreshSrflxCandidate(LocalIceCandidate localCandidate);
-  Promise&lt;undefined&gt; gatherRelayCandidates(IceServer server, unsigned long requestedLifetimeInSeconds);
+  Promise&lt;undefined&gt; gatherRelayCandidates(IceServerInit server, unsigned long requestedLifetimeInSeconds);
   Promise&lt;unsigned long&gt; refreshRelayCandidate(LocalIceCandidate relayCandidate, unsigned long requestedLifetimeInSeconds);
-  IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidate remote);
+  IceCandidatePair createCandidatePair(LocalIceCandidate local, RemoteIceCandidateInit remote);
   Promise&lt;IceProbeResult&gt; probeCandidatePair(IceCandidatePair candidatePair);
   attribute EventHandler oncandidategathered;
   attribute EventHandler oncandidateremoved;
@@ -862,19 +862,36 @@ dictionary RtcPacketReceived {
 
 ## IceServer ## {#iceserver}
 <pre class="idl">
-dictionary IceServer {
+dictionary IceServerInit {
   required DOMString url;
   DOMString username;
   DOMString credentials;
 };
 </pre>
-: <dfn for="IceServer" dict-member>url</dfn>
+: <dfn for="IceServerInit" dict-member>url</dfn>
 :: The URL of the ICE server.
 
-: <dfn for="IceServer" dict-member>username</dfn>
+: <dfn for="IceServerInit" dict-member>username</dfn>
 :: The username used for credential verification.
 
-: <dfn for="IceServer" dict-member>credentials</dfn>
+: <dfn for="IceServerInit" dict-member>credentials</dfn>
+:: The credentials for authentication.
+
+<pre class="idl">
+[Exposed=(Window,Worker)]
+interface IceServer {
+  readonly attribute DOMString url;
+  readonly attribute DOMString username;
+  readonly attribute DOMString credentials;
+};
+</pre>
+: <dfn for="IceServer" attribute>url</dfn>
+:: The URL of the ICE server.
+
+: <dfn for="IceServer" attribute>username</dfn>
+:: The username used for credential verification.
+
+: <dfn for="IceServer" attribute>credentials</dfn>
 :: The credentials for authentication.
 
 ## IceCandidateType ## {#icecandidatetype}
@@ -971,7 +988,37 @@ When a new {{LocalIceCandidate}} object is created, the user agent MUST run the 
 
 ## RemoteIceCandidate ## {#remoteicecandidate}
 <pre class="idl">
-dictionary RemoteIceCandidate {
+[Exposed=(Window,Worker)]
+interface RemoteIceCandidate {
+  readonly attribute DOMString ufrag;
+  readonly attribute DOMString pwd;
+  readonly attribute DOMString address;
+  readonly attribute unsigned short port;
+  readonly attribute IceCandidateType type;
+  readonly attribute unsigned short networkCost;
+};
+</pre>
+: <dfn for="RemoteIceCandidate" attribute>ufrag</dfn>
+:: Remote ICE user fragment.
+
+: <dfn for="RemoteIceCandidate" attribute>pwd</dfn>
+:: Remote ICE password.
+
+: <dfn for="RemoteIceCandidate" attribute>address</dfn>
+:: Remote IP Address of the candidate.
+
+: <dfn for="RemoteIceCandidate" attribute>port</dfn>
+:: Remote Port of the candidate.
+
+: <dfn for="RemoteIceCandidate" attribute>type</dfn>
+:: The remote candidate type.
+
+: <dfn for="RemoteIceCandidate" attribute>networkCost</dfn>
+:: The remote costs associated with network route utilization.
+
+<pre class="idl">
+[Exposed=(Window,Worker)]
+dictionary RemoteIceCandidateInit {
   required DOMString ufrag;
   required DOMString pwd;
   required DOMString address;
@@ -980,22 +1027,24 @@ dictionary RemoteIceCandidate {
   unsigned short networkCost;
 };
 </pre>
-: <dfn for="RemoteIceCandidate" dict-member>ufrag</dfn>
+
+
+: <dfn for="RemoteIceCandidateInit" dict-member>ufrag</dfn>
 :: Remote ICE user fragment.
 
-: <dfn for="RemoteIceCandidate" dict-member>pwd</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>pwd</dfn>
 :: Remote ICE password.
 
-: <dfn for="RemoteIceCandidate" dict-member>address</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>address</dfn>
 :: Remote IP Address of the candidate.
 
-: <dfn for="RemoteIceCandidate" dict-member>port</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>port</dfn>
 :: Remote Port of the candidate.
 
-: <dfn for="RemoteIceCandidate" dict-member>type</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>type</dfn>
 :: The remote candidate type.
 
-: <dfn for="RemoteIceCandidate" dict-member>networkCost</dfn>
+: <dfn for="RemoteIceCandidateInit" dict-member>networkCost</dfn>
 :: The remote costs associated with network route utilization.
 
 ## IceCandidatePair ## {#icecandidatepair-section}
