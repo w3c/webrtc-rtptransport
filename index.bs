@@ -26,6 +26,11 @@ spec:webidl; type:dfn; text:resolve
 spec:infra; type:dfn; text:enqueue
 spec:infra; type:dfn; text:dequeue
 spec:infra; type:dfn; text:list
+spec:dom; type:dfn; text:fire an event
+spec:dom; type:dfn; text:dispatch
+spec:dom; type:dfn; text:event
+spec:html; type:dfn; text:queue a task
+spec:html; type:dfn; text:event handler
 </pre>
 <pre class=biblio>
 {
@@ -107,7 +112,7 @@ specification uses that specification and terminology.
 :: A transport level header included in packets that carries feedback information from the remote peer, used in conjuction with the [=Circuit Breaker=] to detect and prevent abusive network behavior.
 
 : <dfn export>Writable</dfn>
-:: A [=Network Route=] is considered **Writable** when it has been verified that the remote peer can successfully receive packets over that specific [=Network Route=].
+:: A [=Network Route=] is considered writable when it has been verified that the remote peer can successfully receive packets over that specific [=Network Route=].
 
 # The `RtcTransport` Interface # {#rtctransport-interface}
 
@@ -115,6 +120,12 @@ specification uses that specification and terminology.
 [Exposed=(Window,Worker)]
 interface RtcTransport {
   constructor(RtcTransportConfig config);
+  undefined setFormat(RtcTransportFormat format);
+  undefined sendPackets(sequence&lt;RtcPacketToSend&gt; packets, RtcNetworkRoute networkRoute);
+  undefined setRemoteFingerprints(sequence&lt;ArrayBuffer&gt; fingerprint);
+  Promise&lt;boolean&gt; establishEncryption(RtcNetworkRoute networkRoute);
+  sequence&lt;RtcPacketSentInfo&gt; getPacketSentInfo();
+  sequence&lt;RtcPacketReceived&gt; getReceivedPacket();
   static readonly attribute FrozenArray&lt;RtcTransportFormat&gt; supportedFormats;
   readonly attribute RtcNetworkRouteController networkRouteController;
   attribute EventHandler ontransportstatus;
@@ -122,12 +133,6 @@ interface RtcTransport {
   attribute EventHandler onpendingpacketsreceived;
   attribute EventHandler onerror;
   attribute EventHandler onfeedbacksent;
-  undefined setFormat(RtcTransportFormat format);
-  undefined sendPackets(sequence&lt;RtcPacketToSend&gt; packets, RtcNetworkRoute networkRoute);
-  undefined setRemoteFingerprints(sequence&lt;ArrayBuffer&gt; fingerprint);
-  Promise&lt;boolean&gt; establishEncryption(RtcNetworkRoute networkRoute);
-  sequence&lt;RtcPacketSentInfo&gt; getPacketSentInfo();
-  sequence&lt;RtcPacketReceived&gt; getReceivedPacket();
 };
 </pre>
 
@@ -194,28 +199,6 @@ An {{RtcTransport}} object has the following internal slots.
     10. If |config|'s {{RtcTransportConfig/transportControllerType}} member is {{RtcNetworkRouteControllerType/"manualIceController"}}, set |transport|'s {{RtcTransport/[[RouteController]]}} internal slot to a new {{RtcManualIceController}} object.
     11. Return |transport|.
 
-## Attributes ## {#rtctransport-attributes}
-
-: <dfn for="RtcTransport" attribute>supportedFormats</dfn>
-:: Returns a list of supported {{RtcTransportFormat}}s.
-
-: <dfn for="RtcTransport" attribute>networkRouteController</dfn>
-:: Returns the controller associated with this transport.
-
-: <dfn for="RtcTransport" attribute>ontransportstatus</dfn>
-:: Fired when the circuit-breaker disables or re-enables the transport.
-
-: <dfn for="RtcTransport" attribute>onpendingpacketssentinfo</dfn>
-:: Fired when there is new packet sent info to retrieve.
-
-: <dfn for="RtcTransport" attribute>onpendingpacketsreceived</dfn>
-:: Fired when there are new received packets to retrieve.
-
-: <dfn for="RtcTransport" attribute>onerror</dfn>
-:: Fired on buffer overflows (sent info, feedback, or receive buffers).
-
-: <dfn for="RtcTransport" attribute>onfeedbacksent</dfn>
-:: Fired when the transport automatically generates and sends protocol-level feedback.
 
 ## Methods ## {#rtctransport-methods}
 
@@ -230,7 +213,9 @@ An {{RtcTransport}} object has the following internal slots.
 : <dfn for="RtcTransport" method>sendPackets(packets, networkRoute)</dfn>
 :: When the {{RtcTransport/sendPackets(packets, networkRoute)}} method is invoked, the user agent MUST run the following steps:
     1. Let |transport| be the {{RtcTransport}} object on which the method was invoked.
-    2. If |transport|'s {{RtcTransport/[[EncryptionContext]]}} internal slot is `undefined`, throw an {{InvalidStateError}}.
+    2. Let |controller| be |transport|'s {{RtcTransport/[[RouteController]]}} internal slot.
+    3. If |networkRoute|'s {{IceCandidatePair/[[AssociatedController]]}} internal slot is not |controller|, throw an {{InvalidAccessError}}.
+    4. If |transport|'s {{RtcTransport/[[EncryptionContext]]}} internal slot is `undefined`, throw an {{InvalidStateError}}.
     3. If |networkRoute| is not [=Writable=], throw an exception.
     4. If |packets| [=list/is empty=], return.
     5. Let |lastInfo| be |transport|'s {{RtcTransport/[[LastScheduledPacketInfo]]}} internal slot.
@@ -271,7 +256,9 @@ Issue: Should there be any validation of the fingerprints? Is there a particular
 :: When the {{RtcTransport/establishEncryption(networkRoute)}} method is invoked, the user agent MUST run the following steps:
     1. Let |transport| be the {{RtcTransport}} object on which the method was invoked.
     2. Let |p| be [=a new promise=].
-    3. If |transport|'s {{RtcTransport/[[EncryptionContext]]}} internal slot is not `undefined`, [=resolve=] |p| with `true` and return |p|.
+    3. Let |controller| be |transport|'s {{RtcTransport/[[RouteController]]}} internal slot.
+    4. If |networkRoute|'s {{IceCandidatePair/[[AssociatedController]]}} internal slot is not |controller|, [=reject=] |p| with an {{InvalidAccessError}} and return |p|.
+    5. If |transport|'s {{RtcTransport/[[EncryptionContext]]}} internal slot is not `undefined`, [=resolve=] |p| with `true` and return |p|.
     4. If |transport|'s {{RtcTransport/[[RemoteFingerprints]]}} internal slot is `undefined`, [=reject=] |p| with an {{InvalidStateError}} and return |p|.
     5. If |networkRoute| is not [=writable=], [=resolve=] |p| with `false` and return |p|.
     6. Run the following steps [=in parallel=]:
@@ -301,6 +288,29 @@ Issue: Should there be any validation of the fingerprints? Is there a particular
         1. [=list/Append=] the result of [=dequeueing=] from |transport|'s {{RtcTransport/[[PendingReceivedPackets]]}} queue to |result|.
     4. Return |result|.
 
+## Attributes ## {#rtctransport-attributes}
+
+: <dfn for="RtcTransport" attribute>supportedFormats</dfn>
+:: Returns a list of supported {{RtcTransportFormat}}s.
+
+: <dfn for="RtcTransport" attribute>networkRouteController</dfn>
+:: Returns the controller associated with this transport.
+
+: <dfn for="RtcTransport" attribute>ontransportstatus</dfn>
+:: Fired when the circuit-breaker disables or re-enables the transport.
+
+: <dfn for="RtcTransport" attribute>onpendingpacketssentinfo</dfn>
+:: Fired when there is new packet sent info to retrieve.
+
+: <dfn for="RtcTransport" attribute>onpendingpacketsreceived</dfn>
+:: Fired when there are new received packets to retrieve.
+
+: <dfn for="RtcTransport" attribute>onerror</dfn>
+:: Fired on buffer overflows (sent info, feedback, or receive buffers).
+
+: <dfn for="RtcTransport" attribute>onfeedbacksent</dfn>
+:: Fired when the transport automatically generates and sends protocol-level feedback.
+
 # ICE Controllers # {#ice-controllers}
 
 ## RtcManualIceController ## {#rtcmanualicecontroller-section}
@@ -322,26 +332,188 @@ interface RtcManualIceController {
 };
 </pre>
 
+### Internal slots ### {#rtcmanualicecontroller-slots}
+
+An {{RtcManualIceController}} object has the following internal slots.
+
+<table class="data" dfn-for="RtcManualIceController" dfn-type="attribute">
+ <thead>
+  <tr>
+   <th>Internal Slot
+   <th>Description (<em>non-normative</em>)
+  </tr>
+ </thead>
+ <tbody>
+  <tr>
+   <td><dfn>`[[HostCandidateGatheringStarted]]`</dfn>
+   <td class="non-normative">A boolean indicating whether host candidate gathering has been started.
+  </tr>
+  <tr>
+   <td><dfn>`[[IceUfrag]]`</dfn>
+   <td class="non-normative">A randomly assigned username fragment for local ICE authentication.
+  </tr>
+  <tr>
+   <td><dfn>`[[IcePassword]]`</dfn>
+   <td class="non-normative">A randomly assigned password for local ICE authentication.
+  </tr>
+  <tr>
+   <td><dfn>`[[LocalCandidatesToProcess]]`</dfn>
+   <td class="non-normative">A queue of {{LocalIceCandidate}} objects gathered by this controller that are scheduled to be processed.
+  </tr>
+ </tbody>
+</table>
+
+### Instantiation ### {#rtcmanualicecontroller-instantiation}
+
+When a new {{RtcManualIceController}} object is created, the user agent MUST run the following steps:
+1. Let |controller| be a new {{RtcManualIceController}} object.
+2. Set |controller|'s {{RtcManualIceController/[[HostCandidateGatheringStarted]]}} internal slot to `false`.
+3. Set |controller|'s {{RtcManualIceController/[[IceUfrag]]}} internal slot to a newly generated random username fragment.
+4. Set |controller|'s {{RtcManualIceController/[[IcePassword]]}} internal slot to a newly generated random password.
+5. Set |controller|'s {{RtcManualIceController/[[LocalCandidatesToProcess]]}} internal slot to a new empty [=queue=].
+6. Return |controller|.
+
+### Methods ### {#rtcmanualicecontroller-methods-section}
+
 : <dfn for="RtcManualIceController" method>gatherHostCandidates()</dfn>
-:: Will continuously gather host candidates.
+:: When the {{RtcManualIceController/gatherHostCandidates()}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcManualIceController}} object on which the method was invoked.
+    2. If |controller|'s {{RtcManualIceController/[[HostCandidateGatheringStarted]]}} internal slot is `true`, return.
+    3. Set |controller|'s {{RtcManualIceController/[[HostCandidateGatheringStarted]]}} internal slot to `true`.
+    4. [=Gather host candidates=] in parallel for |controller|.
 
 : <dfn for="RtcManualIceController" method>gatherSrflxCandidates(iceServer)</dfn>
-:: Gathers server reflexive candidates.
+:: When the {{RtcManualIceController/gatherSrflxCandidates(iceServer)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcManualIceController}} object on which the method was invoked.
+    2. [=Validate the IceServer=] |iceServer| with expected scheme `"stun"`.
+    3. Let |p| be [=a new promise=].
+    4. Run the following steps [=in parallel=]:
+        1. Let |completedCount| be 0.
+        2. Let |availableInterfaces| be the system's available network interfaces.
+        3. If |availableInterfaces| [=list/is empty=], [=Queue a task=] to [=resolve=] |p| with `undefined`.
+        4. Let |numInterfaces| be the [=list/size=] of |availableInterfaces|.
+        5. For each |interface| in |availableInterfaces|:
+            1. Run the following steps in parallel:
+                1. Send a STUN Binding request to the STUN server defined by |iceServer|, utilizing a local port allocated for host candidates on |interface|.
+                2. Wait for a successful STUN Binding response, for the request to time out after 30 seconds, or for |interface| to become unavailable.
+                3. If a successful STUN Binding response is received:
+                    1. Let |reflectedAddress| and |reflectedPort| be the mapped IP address and port discovered in the STUN response.
+                    2. Let |candidate| be a new {{LocalIceCandidate}} object.
+                    3. [=Initialize a local candidate=] |candidate| for |controller| on |interface|, with type `"srflx"`, address |reflectedAddress|, port |reflectedPort|, and source server |iceServer|.
+                    4. [=Enqueue=] |candidate| into |controller|'s {{RtcManualIceController/[[LocalCandidatesToProcess]]}} queue.
+                5. Set |completedCount| to |completedCount| + 1.
+                6. If |completedCount| is equal to |numInterfaces|:
+                    1. [=Queue a task=] to [=resolve=] |p| with `undefined`.
+    5. Return |p|.
 
 : <dfn for="RtcManualIceController" method>refreshSrflxCandidate(localCandidate)</dfn>
-:: Sends a STUN ping to the IceServer used to discover this candidate, used to keep the candidate (NAT binding) alive. Returns a boolean indicating whether a successful STUN response was received or not.
+:: When the {{RtcManualIceController/refreshSrflxCandidate(localCandidate)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcManualIceController}} object on which the method was invoked.
+    2. If |localCandidate|'s {{LocalIceCandidate/[[AssociatedController]]}} internal slot is not |controller|, throw an {{InvalidAccessError}}.
+    3. If |localCandidate|'s {{LocalIceCandidate/type}} attribute is not the {{IceCandidateType}} value `"srflx"`, throw a {{TypeError}}.
+    4. Let |server| be |localCandidate|'s {{LocalIceCandidate/[[SourceServer]]}} internal slot.
+    4. Let |interface| be |localCandidate|'s {{LocalIceCandidate/[[NetworkInterface]]}} internal slot.
+    5. Let |p| be [=a new promise=].
+    6. Run the following steps [=in parallel=]:
+        1. If |interface| is unavailable, [=Queue a task=] to [=resolve=] |p| with `false` and return.
+        2. Send a STUN Binding request to the STUN server defined by |server|, utilizing the local port allocated for |localCandidate| on |interface|.
+        3. Wait for a successful STUN Binding response, for the request to time out after 30 seconds, or for |interface| to become unavailable.
+        4. If a successful STUN Binding response is received:
+            1. [=Queue a task=] to [=resolve=] |p| with `true`.
+        5. Otherwise:
+            1. [=Queue a task=] to [=resolve=] |p| with `false`.
+    7. Return |p|.
 
 : <dfn for="RtcManualIceController" method>gatherRelayCandidates(server, requestedLifetimeInSeconds)</dfn>
-:: Gathers relay candidates.
+:: When the {{RtcManualIceController/gatherRelayCandidates(server, requestedLifetimeInSeconds)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcManualIceController}} object on which the method was invoked.
+    2. [=Validate the IceServer=] |server| with expected scheme `"turn"`.
+    3. Let |p| be [=a new promise=].
+    4. Run the following steps [=in parallel=]:
+        1. Let |completedCount| be 0.
+        2. Let |availableInterfaces| be the system's available network interfaces.
+        3. If |availableInterfaces| [=list/is empty=], [=Queue a task=] to [=resolve=] |p| with `undefined`.
+        4. Let |numInterfaces| be the [=list/size=] of |availableInterfaces|.
+        5. For each |interface| in |availableInterfaces|:
+            1. Run the following steps in parallel:
+                1. Send a TURN Allocate request to the TURN server defined by |server|, utilizing a local port allocated for host candidates on |interface|. The Allocate request MUST include a `LIFETIME` attribute containing |requestedLifetimeInSeconds|, and utilize the authentication credentials defined by |server|.
+                2. Wait for a successful TURN Allocate response, for the allocation to fail, for the request to time out after 30 seconds, or for |interface| to become unavailable.
+                3. If a successful TURN Allocate response is received:
+                    1. Let |relayedAddress| and |relayedPort| be the relayed IP address and port discovered in the `XOR-RELAYED-ADDRESS` attribute of the Allocate response.
+                    2. Let |grantedLifetime| be the lifetime (in seconds) returned in the `LIFETIME` attribute of the Allocate response.
+                    3. Let |candidate| be a new {{LocalIceCandidate}} object.
+                    4. [=Initialize a local candidate=] |candidate| for |controller| on |interface|, with type `"relay"`, address |relayedAddress|, port |relayedPort|, source server |server|, and relay allocation lifetime |grantedLifetime|.
+                    5. [=Enqueue=] |candidate| into |controller|'s {{RtcManualIceController/[[LocalCandidatesToProcess]]}} queue.
+                4. Set |completedCount| to |completedCount| + 1.
+                5. If |completedCount| is equal to |numInterfaces|:
+                    1. [=Queue a task=] to [=resolve=] |p| with `undefined`.
+    5. Return |p|.
 
 : <dfn for="RtcManualIceController" method>refreshRelayCandidate(relayCandidate, requestedLifetimeInSeconds)</dfn>
-:: Sends a STUN packet with a LIFETIME attribute included, used to extend the TURN allocation. Returns the actual lifetime granted by the server.
+:: When the {{RtcManualIceController/refreshRelayCandidate(relayCandidate, requestedLifetimeInSeconds)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcManualIceController}} object on which the method was invoked.
+    2. If |relayCandidate|'s {{LocalIceCandidate/[[AssociatedController]]}} internal slot is not |controller|, throw an {{InvalidAccessError}}.
+    3. If |relayCandidate|'s {{LocalIceCandidate/type}} attribute is not the {{IceCandidateType}} value `"relay"`, throw a {{TypeError}}.
+    4. Let |server| be |relayCandidate|'s {{LocalIceCandidate/[[SourceServer]]}} internal slot.
+    4. Let |interface| be |relayCandidate|'s {{LocalIceCandidate/[[NetworkInterface]]}} internal slot.
+    5. Let |p| be [=a new promise=].
+    6. If |interface| is unavailable, [=resolve=] |p| with `0` and return |p|.
+    7. Run the following steps [=in parallel=]:
+        1. Send a TURN Refresh request to the TURN server defined by |server|, utilizing the local port allocated for |relayCandidate| on |interface|. The Refresh request MUST include a `LIFETIME` attribute containing |requestedLifetimeInSeconds|, and utilize the authentication credentials defined by |server|.
+        2. Wait for a successful TURN Refresh response, for the request to fail, for the request to time out after 30 seconds, or for |interface| to become unavailable.
+        3. If a successful TURN Refresh response is received:
+            1. Let |grantedLifetime| be the lifetime (in seconds) returned in the `LIFETIME` attribute of the Refresh response.
+            2. Set |relayCandidate|'s {{LocalIceCandidate/[[RelayAllocationLifetime]]}} internal slot to |grantedLifetime|.
+            3. [=Queue a task=] to [=resolve=] |p| with |grantedLifetime|.
+        4. Otherwise:
+            1. [=Queue a task=] to [=resolve=] |p| with `0`.
+    8. Return |p|.
 
 : <dfn for="RtcManualIceController" method>createCandidatePair(local, remote)</dfn>
-:: Creates an IceCandidatePair that represents a possible network route.
+:: When the {{RtcManualIceController/createCandidatePair(local, remote)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcManualIceController}} object on which the method was invoked.
+    2. If |local|'s {{LocalIceCandidate/[[AssociatedController]]}} internal slot is not |controller|, throw an {{InvalidAccessError}}.
+    3. [=Validate the remote candidate=] |remote|.
+    4. Let |pair| be a new {{IceCandidatePair}} object.
+    5. Set |pair|'s {{IceCandidatePair/[[LocalCandidate]]}} internal slot to |local|.
+    6. Set |pair|'s {{IceCandidatePair/[[RemoteCandidate]]}} internal slot to |remote|.
+    7. Set |pair|'s {{IceCandidatePair/[[AssociatedController]]}} internal slot to |controller|.
+    8. Return |pair|.
 
 : <dfn for="RtcManualIceController" method>probeCandidatePair(candidatePair)</dfn>
-:: Probes the candidate pair to check if it's (still) viable and what the RTT is.
+:: When the {{RtcManualIceController/probeCandidatePair(candidatePair)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcManualIceController}} object on which the method was invoked.
+    2. If |candidatePair|'s {{IceCandidatePair/[[AssociatedController]]}} internal slot is not |controller|, throw an {{InvalidAccessError}}.
+    3. Let |local| be |candidatePair|'s {{IceCandidatePair/localCandidate}} attribute.
+    4. Let |remote| be |candidatePair|'s {{IceCandidatePair/remoteCandidate}} attribute.
+    3. Let |interface| be |local|'s {{LocalIceCandidate/[[NetworkInterface]]}} internal slot.
+    4. Let |p| be [=a new promise=].
+    5. Run the following steps [=in parallel=]:
+        1. If |interface| is unavailable, run the following steps:
+            1. Let |result| be a new {{IceProbeResult}} dictionary, initialized as follows:
+                * {{IceProbeResult/success}} set to `false`.
+            2. [=Queue a task=] to [=resolve=] |p| with |result| and return.
+        2. Send a STUN Binding request (probe) to the remote destination defined by |remote|'s IP address and port, utilizing the local port allocated for |local| on |interface|. The probe request MUST utilize standard ICE connectivity check attributes authenticated using the remote candidate's password fragment.
+        3. Let |sendTime| be the high-resolution timestamp when the STUN Binding request was sent.
+        4. Wait for a successful STUN Binding response, for the request to fail, or for the request to time out after 30 seconds, or for |interface| to become unavailable.
+        5. If |interface| is unavailable, run the following steps:
+            1. Let |result| be a new {{IceProbeResult}} dictionary, initialized as follows:
+                * {{IceProbeResult/success}} set to `false`.
+            2. [=Queue a task=] to [=resolve=] |p| with |result| and return.
+        6. If a successful STUN Binding response is received:
+            1. Let |receiveTime| be the high-resolution timestamp when the Binding response was received on the local socket.
+            2. Let |rtt| be the measured duration in milliseconds: |receiveTime| - |sendTime|.
+            3. Let |result| be a new {{IceProbeResult}} dictionary, initialized as follows:
+                * {{IceProbeResult/success}} set to `true`.
+                * {{IceProbeResult/rtt}} set to |rtt|.
+            4. [=Queue a task=] to [=resolve=] |p| with |result|.
+        7. Otherwise:
+            1. Let |result| be a new {{IceProbeResult}} dictionary, initialized as follows:
+                * {{IceProbeResult/success}} set to `false`.
+            2. [=Queue a task=] to [=resolve=] |p| with |result|.
+    6. Return |p|.
+
+### Attributes ### {#rtcmanualicecontroller-attributes}
 
 : <dfn for="RtcManualIceController" attribute>oncandidategathered</dfn>
 :: Fired when a local candidate has been found.
@@ -355,15 +527,41 @@ interface RtcManualIceController {
 : <dfn for="RtcManualIceController" attribute>onerror</dfn>
 :: Fired on candidate gathering errors.
 
+### Local Candidate Processing ### {#rtcmanualicecontroller-local-candidate-processing}
+
+When the {{RtcManualIceController/[[LocalCandidatesToProcess]]}} queue of an {{RtcManualIceController}} |controller| is updated:
+1. While |controller|'s {{RtcManualIceController/[[LocalCandidatesToProcess]]}} queue is not [=list/is empty|empty=]:
+    1. Let |candidate| be the result of [=dequeueing=] from |controller|'s {{RtcManualIceController/[[LocalCandidatesToProcess]]}} queue.
+    2. Let |source| be `undefined`.
+    3. Let |lifetime| be `null`.
+    4. If |candidate|'s {{LocalIceCandidate/type}} attribute is the {{IceCandidateType}} value `"srflx"`:
+        1. Set |source| to |candidate|'s {{LocalIceCandidate/[[SourceServer]]}} internal slot.
+    5. If |candidate|'s {{LocalIceCandidate/type}} attribute is the {{IceCandidateType}} value `"relay"`:
+        1. Set |source| to |candidate|'s {{LocalIceCandidate/[[SourceServer]]}} internal slot.
+        2. Set |lifetime| to |candidate|'s {{LocalIceCandidate/[[RelayAllocationLifetime]]}} internal slot.
+    6. If |candidate|'s {{LocalIceCandidate/type}} attribute is the {{IceCandidateType}} value `"host"`:
+        1. Set |source| to `"host"`.
+    7. [=Dispatch a gathered candidate event=] at |controller| with |candidate|, source |source|, and allocation lifetime |lifetime|.
+
+
+
+ISSUE: The network cost per network type needs to be defined.
+
+ISSUE: What policies should be considered in relation to candidate discovery?
+
+ISSUE: What are reasonable timeout limits? Implementation defined?
+
+ISSUE: Do we need to specify in more detail what it means for an interface to be unavailable?
+
+
 
 ## RtcAutomaticIceController ## {#rtcautomaticicecontroller-section}
 
 <pre class="idl">
 [Exposed=(Window,Worker)]
 interface RtcAutomaticIceController {
-  undefined SetIceServers(sequence&lt;IceServerInit&gt; servers);
-  undefined gatherCandidates();
-  undefined AddRemoteCandidate(RemoteIceCandidateInit remoteCandidate);
+  undefined setIceServers(sequence&lt;IceServer&gt; servers);
+  undefined setRemoteCandidates(sequence&lt;RemoteIceCandidate&gt; remoteCandidates);
   attribute EventHandler oncandidategathered;
   attribute EventHandler oncandidateremoved;
   attribute EventHandler onmaxpayloadsizeupdate;
@@ -372,14 +570,75 @@ interface RtcAutomaticIceController {
 };
 </pre>
 
-: <dfn for="RtcAutomaticIceController" method>SetIceServers(servers)</dfn>
-:: Sets the ICE servers used by the controller.
+### Internal slots ### {#rtcautomaticicecontroller-slots}
 
-: <dfn for="RtcAutomaticIceController" method>gatherCandidates()</dfn>
-:: Starts the continuous gathering of candidates.
+An {{RtcAutomaticIceController}} object has the following internal slots.
 
-: <dfn for="RtcAutomaticIceController" method>AddRemoteCandidate(remoteCandidate)</dfn>
-:: Adds a candidate discovered from the remote peer.
+<table class="data" dfn-for="RtcAutomaticIceController" dfn-type="attribute">
+ <thead>
+  <tr>
+   <th>Internal Slot
+   <th>Description (<em>non-normative</em>)
+  </tr>
+ </thead>
+ <tbody>
+  <tr>
+   <td><dfn>`[[IceServers]]`</dfn>
+   <td class="non-normative">A list of {{IceServer}} dictionaries configured for this controller.
+  </tr>
+  <tr>
+   <td><dfn>`[[IceUfrag]]`</dfn>
+   <td class="non-normative">A username fragment used for remote authentication.
+  </tr>
+  <tr>
+   <td><dfn>`[[IcePassword]]`</dfn>
+   <td class="non-normative">A password used for remote authentication.
+  </tr>
+  <tr>
+   <td><dfn>`[[RemoteCandidates]]`</dfn>
+   <td class="non-normative">A list of {{RemoteIceCandidate}} dictionaries representing remote candidates added to the controller.
+  </tr>
+  <tr>
+   <td><dfn>`[[LocalCandidates]]`</dfn>
+   <td class="non-normative">A list of {{LocalIceCandidate}} objects representing local candidates active for pair forming.
+  </tr>
+  <tr>
+   <td><dfn>`[[LocalCandidatesToProcess]]`</dfn>
+   <td class="non-normative">A queue of {{LocalIceCandidate}} objects gathered by this controller that are scheduled to be processed.
+  </tr>
+ </tbody>
+</table>
+
+### Instantiation ### {#rtcautomaticicecontroller-instantiation}
+
+When a new {{RtcAutomaticIceController}} object is created, the user agent MUST run the following steps:
+1. Let |controller| be a new {{RtcAutomaticIceController}} object.
+2. Set |controller|'s {{RtcAutomaticIceController/[[IceServers]]}} internal slot to a new empty [=list=].
+3. Set |controller|'s {{RtcAutomaticIceController/[[RemoteCandidates]]}} internal slot to a new empty [=list=].
+4. Set |controller|'s {{RtcAutomaticIceController/[[LocalCandidates]]}} internal slot to a new empty [=list=].
+5. Set |controller|'s {{RtcAutomaticIceController/[[LocalCandidatesToProcess]]}} internal slot to a new empty [=queue=].
+6. Set |controller|'s {{RtcAutomaticIceController/[[IceUfrag]]}} internal slot to a newly generated random username fragment.
+7. Set |controller|'s {{RtcAutomaticIceController/[[IcePassword]]}} internal slot to a newly generated random password.
+8. [=RtcAutomaticIceController/Start the candidate gathering process=] for |controller|.
+9. Return |controller|.
+
+### Methods ### {#rtcautomaticicecontroller-methods-section}
+
+: <dfn for="RtcAutomaticIceController" method>setIceServers(servers)</dfn>
+:: When the {{RtcAutomaticIceController/setIceServers(servers)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcAutomaticIceController}} object on which the method was invoked.
+    2. [=list/iterate|For each=] |server| in |servers|:
+        1. [=Validate the IceServer=] |server|.
+    3. Set |controller|'s {{RtcAutomaticIceController/[[IceServers]]}} internal slot to |servers|.
+
+: <dfn for="RtcAutomaticIceController" method>setRemoteCandidates(remoteCandidates)</dfn>
+:: When the {{RtcAutomaticIceController/setRemoteCandidates(remoteCandidates)}} method is invoked, the user agent MUST run the following steps:
+    1. Let |controller| be the {{RtcAutomaticIceController}} object on which the method was invoked.
+    2. [=list/iterate|For each=] |candidate| in |remoteCandidates|:
+        1. [=Validate the remote candidate=] |candidate|.
+    3. Set |controller|'s {{RtcAutomaticIceController/[[RemoteCandidates]]}} internal slot to |remoteCandidates|.
+
+### Attributes ### {#rtcautomaticicecontroller-attributes}
 
 : <dfn for="RtcAutomaticIceController" attribute>oncandidategathered</dfn>
 :: Fired when a local candidate has been found.
@@ -395,6 +654,141 @@ interface RtcAutomaticIceController {
 
 : <dfn for="RtcAutomaticIceController" attribute>onerror</dfn>
 :: Fired on candidate gathering errors.
+
+### Candidate Gathering ### {#rtcautomaticicecontroller-gathering}
+
+To <dfn for="RtcAutomaticIceController">start the candidate gathering process</dfn> for a controller |controller|, the user agent MUST run the following steps in parallel:
+1. [=Gather host candidates=] for |controller|.
+2. Continuously monitor network interfaces.
+3. When a network interface becomes available, for each |server| in |controller|'s {{RtcAutomaticIceController/[[IceServers]]}} internal slot:
+    1. [=RtcAutomaticIceController/Gather reflexive and relay candidates=] for |controller| using |server| over the network interface.
+4. When |controller|'s {{RtcAutomaticIceController/[[IceServers]]}} internal slot is updated:
+    1. Let |newServers| be the list of {{IceServer}}s in the new value of `[[IceServers]]` that were not present in its previous value.
+    2. [=list/iterate|For each=] |server| in |newServers|:
+        1. Run the following steps in parallel over each available network interface:
+            1. [=RtcAutomaticIceController/Gather reflexive and relay candidates=] for |controller| using |server| over the network interface.
+
+### Gather Reflexive and Relay Candidates ### {#procedure-gather-reflexive-relay-candidates}
+
+To <dfn for="RtcAutomaticIceController">gather reflexive and relay candidates</dfn> for a controller |controller| using an {{IceServer}} |server| over a network interface |interface|, the user agent MUST run the following steps:
+1. Let |url| be the result of parsing |server|'s {{IceServer/url}} attribute as a URL.
+2. If |url|'s scheme is `"stun"` or `"stuns"`:
+    1. Perform STUN candidate gathering utilizing |server| on |interface|.
+    2. If a STUN Binding response is successfully received:
+        1. Let |reflectedAddress| and |reflectedPort| be the mapped IP address and port discovered in the STUN response.
+        2. Let |candidate| be a new {{LocalIceCandidate}} object.
+        3. [=Initialize a local candidate=] |candidate| for |controller| on |interface|, with type `"srflx"`, address |reflectedAddress|, port |reflectedPort|, and source server |server|.
+        4. [=Enqueue=] |candidate| into |controller|'s {{RtcAutomaticIceController/[[LocalCandidatesToProcess]]}} queue.
+3. If |url|'s scheme is `"turn"` or `"turns"`:
+    1. Perform TURN candidate allocation utilizing |server| on |interface|.
+    2. If a TURN Allocate response is successfully received:
+        1. Let |relayedAddress| and |relayedPort| be the relayed IP address and port discovered in the `XOR-RELAYED-ADDRESS` attribute of the Allocate response.
+        2. Let |grantedLifetime| be the lifetime (in seconds) returned in the `LIFETIME` attribute of the Allocate response.
+        3. Let |candidate| be a new {{LocalIceCandidate}} object.
+        4. [=Initialize a local candidate=] |candidate| for |controller| on |interface|, with type `"relay"`, address |relayedAddress|, port |relayedPort|, source server |server|, and relay allocation lifetime |grantedLifetime|.
+        5. [=Enqueue=] |candidate| into |controller|'s {{RtcAutomaticIceController/[[LocalCandidatesToProcess]]}} queue.
+
+ISSUE: Does STUN/TURN gathering need to be specified in more detail? Is there some other doc we can point to?
+
+### Local Candidate Processing ### {#rtcautomaticicecontroller-local-candidate-processing}
+
+When the {{RtcAutomaticIceController/[[LocalCandidatesToProcess]]}} queue of an {{RtcAutomaticIceController}} |controller| is updated:
+1. While |controller|'s {{RtcAutomaticIceController/[[LocalCandidatesToProcess]]}} queue is not [=list/is empty|empty=]:
+    1. Let |localCandidate| be the result of [=dequeueing=] from |controller|'s {{RtcAutomaticIceController/[[LocalCandidatesToProcess]]}} queue.
+    2. Let |source| be `undefined`.
+    3. Let |lifetime| be `null`.
+    4. If |localCandidate|'s {{LocalIceCandidate/type}} attribute is the {{IceCandidateType}} value `"srflx"`:
+        1. Set |source| to |localCandidate|'s {{LocalIceCandidate/[[SourceServer]]}} internal slot.
+    5. If |localCandidate|'s {{LocalIceCandidate/type}} attribute is the {{IceCandidateType}} value `"relay"`:
+        1. Set |source| to |localCandidate|'s {{LocalIceCandidate/[[SourceServer]]}} internal slot.
+        2. Set |lifetime| to |localCandidate|'s {{LocalIceCandidate/[[RelayAllocationLifetime]]}} internal slot.
+    6. If |localCandidate|'s {{LocalIceCandidate/type}} attribute is the {{IceCandidateType}} value `"host"`:
+        1. Set |source| to `"host"`.
+    7. [=list/Append=] |localCandidate| to |controller|'s {{RtcAutomaticIceController/[[LocalCandidates]]}} internal slot.
+    8. [=Dispatch a gathered candidate event=] at |controller| with |localCandidate|, source |source|, and allocation lifetime |lifetime|.
+
+### Candidate Pair Forming ### {#rtcautomaticicecontroller-pair-forming}
+
+An {{RtcAutomaticIceController}} |controller| continuously monitors and reacts to updates in its local candidates and remote candidates to form and evaluate candidate pairs:
+
+1. When |controller|'s {{RtcAutomaticIceController/[[LocalCandidates]]}} internal slot is updated (e.g., when a new local candidate |localCandidate| is appended):
+    1. [=list/iterate|For each=] |remoteCandidate| in |controller|'s {{RtcAutomaticIceController/[[RemoteCandidates]]}} internal slot:
+        1. Evaluate whether trying to form a candidate pair with |localCandidate| and |remoteCandidate| is worth it or not (e.g., based on candidate types, network type, and routing policies).
+        2. If so:
+            1. Let |pair| be an {{IceCandidatePair}} created by setting its {{IceCandidatePair/[[LocalCandidate]]}} slot to |localCandidate|, {{IceCandidatePair/[[RemoteCandidate]]}} slot to |remoteCandidate|, and {{IceCandidatePair/[[AssociatedController]]}} slot to |controller|.
+            2. Perform an ICE connectivity check (ping) on |pair| by sending an authenticated STUN Binding request using the remote candidate's credentials.
+
+2. When |controller|'s {{RtcAutomaticIceController/[[RemoteCandidates]]}} internal slot is updated:
+    1. Let |newCandidates| be the list of {{RemoteIceCandidate}}s in the new value of `[[RemoteCandidates]]` that were not present in its previous value.
+    2. [=list/iterate|For each=] |remoteCandidate| in |newCandidates|:
+        1. [=list/iterate|For each=] |localCandidate| in |controller|'s {{RtcAutomaticIceController/[[LocalCandidates]]}} internal slot:
+            1. Evaluate whether trying to form a candidate pair with |localCandidate| and |remoteCandidate| is worth it or not (e.g., based on candidate types, network type, and routing policies).
+            2. If so:
+                1. Let |pair| be an {{IceCandidatePair}} created by setting its {{IceCandidatePair/[[LocalCandidate]]}} slot to |localCandidate|, {{IceCandidatePair/[[RemoteCandidate]]}} slot to |remoteCandidate|, and {{IceCandidatePair/[[AssociatedController]]}} slot to |controller|.
+                2. Perform an ICE connectivity check (ping) on |pair| by sending an authenticated STUN Binding request using the remote candidate's credentials.
+
+3. Continuously perform ICE connectivity checks by forming candidate pairs with the remote candidates in |controller|'s {{RtcAutomaticIceController/[[RemoteCandidates]]}} internal slot and the local candidates in |controller|'s {{RtcAutomaticIceController/[[LocalCandidates]]}} internal slot, in order to select and maintain network routes.
+
+## Procedures ## {#ice-controllers-procedures}
+
+### Validate IceServer ### {#procedure-validate-iceserver}
+
+To <dfn>validate the IceServer</dfn> |server| with an optional DOMString |expectedScheme|:
+1. Let |url| be the result of parsing |server|'s {{IceServer/url}} attribute as a URL.
+2. If |url| is failure, throw a {{TypeError}}.
+3. Let |scheme| be |url|'s scheme.
+4. If |expectedScheme| is provided:
+    1. If |expectedScheme| is `"stun"` and |scheme| is neither `"stun"` nor `"stuns"`, throw a {{TypeError}}.
+    2. If |expectedScheme| is `"turn"` and |scheme| is neither `"turn"` nor `"turns"`, throw a {{TypeError}}.
+5. Otherwise, if |scheme| is neither `"stun"`, `"stuns"`, `"turn"`, nor `"turns"`, throw a {{TypeError}}.
+6. If |scheme| is `"turn"` or `"turns"`:
+    1. If |server|'s {{IceServer/username}} member is not present, or if |server|'s {{IceServer/credentials}} member is not present, throw a {{TypeError}}.
+
+### Validate Remote Candidate ### {#procedure-validate-remote-candidate}
+
+To <dfn>validate the remote candidate</dfn> |candidate|:
+1. If |candidate|'s {{RemoteIceCandidate/ufrag}} member is the empty string, throw a {{TypeError}}.
+2. If |candidate|'s {{RemoteIceCandidate/pwd}} member is the empty string, throw a {{TypeError}}.
+3. If |candidate|'s {{RemoteIceCandidate/address}} member is the empty string, throw a {{TypeError}}.
+4. If |candidate|'s {{RemoteIceCandidate/port}} member is equal to 0, throw a {{TypeError}}.
+5. If |candidate|'s {{RemoteIceCandidate/type}} member is not a valid {{IceCandidateType}} value, throw a {{TypeError}}.
+
+### Initialize a Local Candidate ### {#procedure-initialize-local-candidate}
+
+To <dfn>initialize a local candidate</dfn> |candidate| for a controller |controller| on a network interface |interface|, with a type |type|, address |address|, port |port|, optional source server |server|, and optional relay allocation lifetime |lifetime|, the user agent MUST run the following steps:
+1. Set |candidate|'s {{LocalIceCandidate/address}} attribute to |address|.
+2. Set |candidate|'s {{LocalIceCandidate/port}} attribute to |port|.
+3. Set |candidate|'s {{LocalIceCandidate/type}} attribute to |type|.
+4. Set |candidate|'s {{LocalIceCandidate/ufrag}} attribute to |controller|'s `[[IceUfrag]]` internal slot.
+5. Set |candidate|'s {{LocalIceCandidate/pwd}} attribute to |controller|'s `[[IcePassword]]` internal slot.
+6. Set |candidate|'s {{LocalIceCandidate/networkCost}} attribute to a value representing the network cost of |interface|.
+7. Set |candidate|'s {{LocalIceCandidate/[[NetworkInterface]]}} internal slot to |interface|.
+8. If |server| is provided, set |candidate|'s {{LocalIceCandidate/[[SourceServer]]}} internal slot to |server|.
+9. If |lifetime| is provided, set |candidate|'s {{LocalIceCandidate/[[RelayAllocationLifetime]]}} internal slot to |lifetime|.
+10. Set |candidate|'s {{LocalIceCandidate/[[AssociatedController]]}} internal slot to |controller|.
+
+### Gather Host Candidates ### {#procedure-gather-host-candidates}
+
+To <dfn>gather host candidates</dfn> for an {{RtcNetworkRouteController}} |controller|, the user agent MUST run the following steps in parallel:
+1. Continuously monitor network interfaces.
+2. When a network interface is available:
+    1. Let |candidate| be a new {{LocalIceCandidate}} object.
+    2. Let |port| be a port allocated for host candidates on the network interface.
+    3. [=Initialize a local candidate=] |candidate| for |controller| on the network interface, with type `"host"`, address as the IP address of the network interface, and port |port|.
+    4. [=Enqueue=] |candidate| into |controller|'s `[[LocalCandidatesToProcess]]` queue.
+
+### Dispatch a Gathered Candidate Event ### {#procedure-dispatch-gathered-candidate}
+
+To <dfn>dispatch a gathered candidate event</dfn> at a controller |controller| with a candidate |candidate|, a source |source|, and an optional allocation lifetime |lifetime|, the user agent MUST run the following steps:
+1. Let |event| be a new {{IceCandidateGatheredEvent}} object, initialized as follows:
+    * `type` set to `"candidategathered"`.
+    * `bubbles` set to `false`.
+    * `cancelable` set to `false`.
+    * {{IceCandidateGatheredEvent/candidate}} set to |candidate|.
+    * {{IceCandidateGatheredEvent/source}} set to |source|.
+    * {{IceCandidateGatheredEvent/networkCost}} set to |candidate|'s {{LocalIceCandidate/networkCost}} attribute.
+    * {{IceCandidateGatheredEvent/allocationLifetime}} set to |lifetime| if provided, and `null` otherwise.
+2. [=Queue a task=] to [=dispatch=] |event| at |controller|.
 
 # Helper Types # {#helper-types}
 
@@ -470,8 +864,8 @@ dictionary RtcPacketReceived {
 <pre class="idl">
 dictionary IceServerInit {
   required DOMString url;
-  required DOMString username;
-  required DOMString credentials;
+  DOMString username;
+  DOMString credentials;
 };
 </pre>
 : <dfn for="IceServerInit" dict-member>url</dfn>
@@ -533,6 +927,47 @@ interface LocalIceCandidate {
   readonly attribute unsigned short networkCost;
 };
 </pre>
+### Internal slots ### {#localicecandidate-slots}
+
+A {{LocalIceCandidate}} object has the following internal slots.
+
+<table class="data" dfn-for="LocalIceCandidate" dfn-type="attribute">
+ <thead>
+  <tr>
+   <th>Internal Slot
+   <th>Description (<em>non-normative</em>)
+  </tr>
+ </thead>
+ <tbody>
+  <tr>
+   <td><dfn>`[[SourceServer]]`</dfn>
+   <td class="non-normative">The {{IceServer}} dictionary used to discover this candidate, if it is a server reflexive candidate, and `undefined` otherwise.
+  </tr>
+  <tr>
+   <td><dfn>`[[NetworkInterface]]`</dfn>
+   <td class="non-normative">The dynamic system network interface this candidate is bound to.
+  </tr>
+  <tr>
+   <td><dfn>`[[RelayAllocationLifetime]]`</dfn>
+   <td class="non-normative">An unsigned long representing the TURN allocation lifetime in seconds if this is a relay candidate, and `undefined` otherwise.
+  </tr>
+  <tr>
+   <td><dfn>`[[AssociatedController]]`</dfn>
+   <td class="non-normative">The ICE controller instance (either {{RtcManualIceController}} or {{RtcAutomaticIceController}}) that created this candidate.
+  </tr>
+ </tbody>
+</table>
+
+### Instantiation ### {#localicecandidate-instantiation}
+
+When a new {{LocalIceCandidate}} object is created, the user agent MUST run the following steps:
+1. Let |candidate| be a new {{LocalIceCandidate}} object.
+2. Set |candidate|'s {{LocalIceCandidate/[[SourceServer]]}} internal slot to `undefined`.
+3. Set |candidate|'s {{LocalIceCandidate/[[NetworkInterface]]}} internal slot to `undefined`.
+4. Set |candidate|'s {{LocalIceCandidate/[[RelayAllocationLifetime]]}} internal slot to `undefined`.
+5. Set |candidate|'s {{LocalIceCandidate/[[AssociatedController]]}} internal slot to `undefined`.
+6. Return |candidate|.
+
 : <dfn for="LocalIceCandidate" attribute>ufrag</dfn>
 :: ICE user fragment.
 
@@ -620,11 +1055,49 @@ interface IceCandidatePair {
   readonly attribute RemoteIceCandidate remoteCandidate;
 };
 </pre>
+### Internal slots ### {#icecandidatepair-slots}
+
+An {{IceCandidatePair}} object has the following internal slots.
+
+<table class="data" dfn-for="IceCandidatePair" dfn-type="attribute">
+ <thead>
+  <tr>
+   <th>Internal Slot
+   <th>Description (<em>non-normative</em>)
+  </tr>
+ </thead>
+ <tbody>
+  <tr>
+   <td><dfn>`[[LocalCandidate]]`</dfn>
+   <td class="non-normative">The local candidate associated with this pair.
+  </tr>
+  <tr>
+   <td><dfn>`[[RemoteCandidate]]`</dfn>
+   <td class="non-normative">The remote candidate associated with this pair.
+  </tr>
+  <tr>
+   <td><dfn>`[[AssociatedController]]`</dfn>
+   <td class="non-normative">The ICE controller instance (either {{RtcManualIceController}} or {{RtcAutomaticIceController}}) that created this pair.
+  </tr>
+ </tbody>
+</table>
+
+### Instantiation ### {#icecandidatepair-instantiation}
+
+When a new {{IceCandidatePair}} object is created, the user agent MUST run the following steps:
+1. Let |pair| be a new {{IceCandidatePair}} object.
+2. Set |pair|'s {{IceCandidatePair/[[LocalCandidate]]}} internal slot to `undefined`.
+3. Set |pair|'s {{IceCandidatePair/[[RemoteCandidate]]}} internal slot to `undefined`.
+4. Set |pair|'s {{IceCandidatePair/[[AssociatedController]]}} internal slot to `undefined`.
+5. Return |pair|.
+
+### Attributes ### {#icecandidatepair-attributes}
+
 : <dfn for="IceCandidatePair" attribute>localCandidate</dfn>
-:: Local candidate component.
+:: Returns the value of this {{IceCandidatePair}}'s {{IceCandidatePair/[[LocalCandidate]]}} internal slot.
 
 : <dfn for="IceCandidatePair" attribute>remoteCandidate</dfn>
-:: Remote candidate component.
+:: Returns the value of this {{IceCandidatePair}}'s {{IceCandidatePair/[[RemoteCandidate]]}} internal slot.
 
 ## IceCandidateGatheredEvent ## {#icecandidategatheredevent-section}
 <pre class="idl">
@@ -651,11 +1124,15 @@ interface IceCandidateGatheredEvent : Event {
 ## IceProbeResult ## {#iceproberesult}
 <pre class="idl">
 dictionary IceProbeResult {
+  required boolean success;
   DOMHighResTimeStamp rtt;
 };
 </pre>
+: <dfn for="IceProbeResult" dict-member>success</dfn>
+:: A boolean indicating whether the route probe check succeeded (received a STUN response).
+
 : <dfn for="IceProbeResult" dict-member>rtt</dfn>
-:: Round-trip time discovered by the probe.
+:: Round-trip time discovered by the probe in milliseconds. Only present if {{IceProbeResult/success}} is `true`.
 
 ## Type Definitions and Rest Enums ## {#typedefs-and-enums}
 
