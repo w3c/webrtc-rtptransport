@@ -200,13 +200,25 @@ dictionary RtcPacketSentInfo {
   DOMHighResTimeStamp sendTime;
 };
 
-dictionary RtcPacketReceived {
-  // TODO: BYOB, change to a CopyToBuffer function.
-  // TODO: L4S/ECN
-  ArrayBuffer data;
-  DOMHighResTimeStamp receiveTime;
+enum RtcEcnMarking {
+  "classic",
+  "l4s",
+  "experienced-congestion",
+};
 
-  RtcNetworkRoute networkRoute;
+[Exposed=Window,Worker]
+interface RtcPacketReceived {
+  // TODO: BYOB, change to a CopyToBuffer function.
+  readonly attribute ArrayBuffer data;
+  readonly attribute DOMHighResTimeStamp receiveTime;
+
+  // ECN marking observed when this packet was received. This is receive-only
+  // metadata and is not part of `data`; forwarding `data` does not copy the
+  // marking to the newly sent packet. This is null for packets with an ECN
+  // field of 00.
+  readonly attribute RtcEcnMarking? ecnMarking;
+
+  readonly attribute RtcNetworkRoute networkRoute;
 };
 
 ```
