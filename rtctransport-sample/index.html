@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RtcTransport Client</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; padding: 16px; background: #f5f5f5; color: #222; font-size: 14px; }
+    h1 { font-size: 1.3em; font-weight: 600; margin-bottom: 12px; }
+    .app { max-width: 1100px; margin: 0 auto; }
+
+    /* Panels */
+    .panel { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 14px; margin-bottom: 12px; }
+    .panel h2 { font-size: 0.95em; font-weight: 600; margin-bottom: 10px; color: #444; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Settings row */
+    .settings-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .settings-row label { font-size: 0.85em; color: #555; }
+    .settings-row select, .settings-row input {
+      padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px;
+      font-size: 0.85em; background: #fff; color: #222;
+    }
+    .settings-row input { width: 120px; }
+
+    /* Buttons */
+    .btn-group { display: flex; gap: 6px; margin-top: 10px; }
+    button {
+      padding: 6px 14px; border: 1px solid #999; border-radius: 4px;
+      background: #fff; cursor: pointer; font-size: 0.85em; font-weight: 500;
+    }
+    button:hover { background: #eee; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.ghost { border: 1px solid #bbb; background: transparent; font-size: 0.8em; }
+
+    /* State */
+    .state { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: 600; }
+    .state-idle { background: #e5e7eb; color: #666; }
+    .state-connecting { background: #fef3c7; color: #92400e; }
+    .state-connected { background: #d1fae5; color: #065f46; }
+
+    /* Video grid */
+    .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .video-grid { grid-template-columns: 1fr; } }
+    .video-box video, .video-box canvas { width: 100%; background: #111; border-radius: 4px; display: block; }
+    .video-box .label { font-size: 0.8em; color: #888; margin-bottom: 4px; }
+
+    /* Stats */
+    .stats-sections { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media (max-width: 640px) { .stats-sections { grid-template-columns: 1fr; gap: 10px; } }
+    .stats-section-title { font-size: 0.82em; font-weight: 600; color: #666; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+    .stats-grid { font-size: 0.82em; }
+    .stat-item { display: flex; justify-content: space-between; padding: 2px 0; }
+    .stat-label { color: #888; }
+    .stat-value { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+    /* Graphs */
+    .graphs-panel { display: none; }
+    .graphs-panel.visible { display: block; }
+    .graphs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+    .graph-box canvas { width: 100%; height: 100px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fafafa; }
+    .graph-box .label { font-size: 0.75em; color: #888; margin-bottom: 2px; }
+
+    /* Log */
+    .log-panel { max-height: 200px; overflow-y: auto; font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.78em; line-height: 1.5; background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 8px; }
+    .log-panel div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .log-warn { color: #b45309; }
+    .log-error { color: #dc2626; }
+
+    .panel[hidden] { display: none; }
+    .state-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: 600; }
+    .readonly-input[readonly] { background: #f8f8f8; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="panel">
+      <h1>RtcTransport Client</h1>
+    </header>
+
+    <section class="panel">
+      <h2>Settings</h2>
+      <div class="settings-row">
+        <label>
+          Room
+          <input type="text" id="roomInput" value="test-room">
+        </label>
+        <label>
+          Video codec
+          <select id="videoCodec">
+            <option value="vp8">VP8</option>
+            <option value="vp9" selected>VP9</option>
+            <option value="h264">H.264</option>
+            <option value="hevc">HEVC</option>
+            <option value="av1">AV1</option>
+          </select>
+        </label>
+        <label>
+          Audio codec
+          <select id="audioCodec">
+            <option value="opus" selected>Opus</option>
+            <option value="aac">AAC-LC</option>
+            <option value="pcmu">G.711 µ-law (PCMU)</option>
+            <option value="pcma">G.711 A-law (PCMA)</option>
+          </select>
+        </label>
+        <label>
+          CC algorithm
+          <select id="ccAlgorithm">
+            <option value="simple">Simple (AIMD)</option>
+            <option value="gcc" selected>GCC (RFC 8698)</option>
+          </select>
+        </label>
+        <label>
+          Resolution
+          <select id="resolution">
+            <option value="qvga">QVGA (320×240)</option>
+            <option value="vga" selected>VGA (640×480)</option>
+            <option value="sd">SD (854×480)</option>
+            <option value="hd">HD (1280×720)</option>
+          </select>
+        </label>
+        <div>
+          <div class="label">State</div>
+          <span id="callState" class="state state-idle state-badge">idle</span>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button id="btnJoin">Join</button>
+        <button id="btnCall" disabled>Call</button>
+        <button id="btnHangup" disabled>Hang Up</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Video</h2>
+      <div class="video-grid">
+        <div class="video-box">
+          <div class="label">Local</div>
+          <video id="localVideo" autoplay muted playsinline></video>
+        </div>
+        <div class="video-box">
+          <div class="label">Remote</div>
+          <canvas id="remoteVideo" width="640" height="480"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section id="statsPanel" class="panel" hidden>
+      <h2>Stats</h2>
+      <div id="stats"></div>
+      <div class="btn-group">
+        <button id="btnToggleGraphs" class="ghost" type="button">Show Graphs</button>
+      </div>
+    </section>
+
+    <section id="graphsPanel" class="panel graphs-panel">
+      <h2>Graphs</h2>
+      <div class="graphs-grid">
+        <div class="graph-box">
+          <div class="label">Bitrate over time</div>
+          <canvas id="graphBitrate"></canvas>
+        </div>
+        <div class="graph-box">
+          <div class="label">QP over time</div>
+          <canvas id="graphQp"></canvas>
+        </div>
+        <div class="graph-box">
+          <div class="label">Packet loss over time</div>
+          <canvas id="graphLoss"></canvas>
+        </div>
+        <div class="graph-box">
+          <div class="label">Jitter over time</div>
+          <canvas id="graphJitter"></canvas>
+        </div>
+        <div class="graph-box">
+          <div class="label">Resolution over time (kpx)</div>
+          <canvas id="graphResolution"></canvas>
+        </div>
+        <div class="graph-box">
+          <div class="label">FPS over time</div>
+          <canvas id="graphFps"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Log</h2>
+      <div id="log" class="log-panel"></div>
+    </section>
+  </div>
+
+  <script type="module" src="dist/main.js"></script>
+</body>
+</html>
