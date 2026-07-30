@@ -4,11 +4,12 @@
 import { SignalingChannel } from './signaling';
 import { CallStateMachine } from './call-state-machine';
 import { RtcTransportAdapter } from './transport/rtc-transport-adapter';
+import { Pacer, PacketPriority } from './transport/pacer';
 import { RtpSession } from './rtp/rtp-session';
 import { parseRtpPacket } from './rtp/rtp-packet';
 import { parseRtcpCompound } from './rtp/rtcp-packet';
 import {
-  VIDEO_CODECS, AUDIO_CODECS, getSdpRtpmap,
+  VIDEO_CODECS, AUDIO_CODECS,
   type VideoCodecName, type AudioCodecName, type CodecInfo,
   Vp8Packetizer, Vp8Depacketizer,
   Vp9Packetizer, Vp9Depacketizer,
@@ -25,6 +26,12 @@ import { AudioCapture } from './media/audio-capture';
 import { AudioPlayback } from './media/audio-playback';
 import { JitterBuffer } from './media/jitter-buffer';
 import { parseSdp, parseFingerprint, getLocalSetupRole, formatFingerprint } from './sdp/sdp-parser';
+import {
+  buildSdp as buildSdpFromParams,
+  VIDEO_RTCP_FEEDBACK,
+  AUDIO_HEADER_EXTENSIONS,
+  VIDEO_HEADER_EXTENSIONS,
+} from './sdp/sdp-builder';
 import {
   createCongestionController,
   type CongestionController,
@@ -61,6 +68,7 @@ const graphLoss = document.getElementById('graphLoss') as HTMLCanvasElement;
 const graphJitter = document.getElementById('graphJitter') as HTMLCanvasElement;
 const graphResolution = document.getElementById('graphResolution') as HTMLCanvasElement;
 const graphFps = document.getElementById('graphFps') as HTMLCanvasElement;
+const graphFrameSize = document.getElementById('graphFrameSize') as HTMLCanvasElement;
 const ccAlgorithmSelect = document.getElementById('ccAlgorithm') as HTMLSelectElement;
 
 // Resolution presets
@@ -95,6 +103,8 @@ let activeAudioCodec: CodecInfo = AUDIO_CODECS.opus;
 let activeResolution = {width: 640, height: 480};
 let activeCcAlgorithm: CongestionControlAlgorithm = 'simple';
 let congestionController: CongestionController | null = null;
+// Pacer
+let pacer: Pacer | null = null;
 // Error recovery
 let videoNackHandler: NackHandler | null = null;
 let videoKeyframeHandler: KeyframeRequestHandler | null = null;
@@ -121,10 +131,12 @@ let lossHistory: number[] = [];
 let jitterHistory: number[] = [];
 let resolutionHistory: number[] = [];
 let fpsHistory: number[] = [];
+let frameSizeHistory: number[] = [];
 let lastBytesReceived = 0;
 let lastPacketsReceived = 0;
 let lastPacketsLost = 0;
 let lastQp = 0; // estimated QP from encoder output (frame size ratio)
+let lastFrameSizeKb = 0; // last encoded frame size in KB
 
 // SSRCs
 const LOCAL_VIDEO_SSRC = (Math.random() * 0xFFFFFFFF) >>> 0;
@@ -169,6 +181,15 @@ function initCallState(): void {
   });
 }
 
+// --- Packet sending via pacer ---
+function sendPacket(data: Uint8Array, priority: PacketPriority): void {
+  if (pacer) {
+    pacer.enqueuePacket(data, priority);
+  } else if (transport) {
+    transport.send(data);
+  }
+}
+
 // Build audio+video SDP offer/answer using selected codecs
 interface BuildSdpParams {
   iceUfrag: string;
@@ -182,82 +203,35 @@ interface BuildSdpParams {
   audioCodec: CodecInfo;
 }
 
-function buildSdpFmtp(codec: CodecInfo): string | null {
-  if (codec.name === 'opus') {
-    return `a=fmtp:${codec.payloadType} minptime=10;useinbandfec=1`;
-  }
-  if (codec.name === 'h264') {
-    return `a=fmtp:${codec.payloadType} level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42E01F`;
-  }
-  if (codec.name === 'aac') {
-    return `a=fmtp:${codec.payloadType} streamtype=5;profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;config=1190`;
-  }
-  return null;
-}
-
 function buildSdp(params: BuildSdpParams): string {
-  const {
-    iceUfrag, icePwd, fingerprint, fingerprintAlgorithm, setup,
-    audioSsrc, videoSsrc, videoCodec, audioCodec,
-  } = params;
-
-  const sessionId = Math.floor(Date.now() / 1000).toString();
-  const lines: string[] = [
-    'v=0',
-    `o=- ${sessionId} 2 IN IP4 127.0.0.1`,
-    's=-',
-    't=0 0',
-    'a=group:BUNDLE 0 1',
-    'a=msid-semantic: WMS local',
-    // Audio m= section (mid=0)
-    `m=audio 9 UDP/TLS/RTP/SAVPF ${audioCodec.payloadType}`,
-    'c=IN IP4 0.0.0.0',
-    'a=rtcp:9 IN IP4 0.0.0.0',
-    `a=ice-ufrag:${iceUfrag}`,
-    `a=ice-pwd:${icePwd}`,
-    'a=ice-options:trickle',
-    `a=fingerprint:${fingerprintAlgorithm} ${fingerprint}`,
-    `a=setup:${setup}`,
-    'a=mid:0',
-    'a=sendrecv',
-    'a=rtcp-mux',
-    `a=rtpmap:${getSdpRtpmap(audioCodec)}`,
-  ];
-
-  const audioFmtp = buildSdpFmtp(audioCodec);
-  if (audioFmtp) lines.push(audioFmtp);
-
-  lines.push(
-    `a=ssrc:${audioSsrc} cname:rtctransport`,
-    `a=ssrc:${audioSsrc} msid:local audio0`,
-    // Video m= section (mid=1)
-    `m=video 9 UDP/TLS/RTP/SAVPF ${videoCodec.payloadType}`,
-    'c=IN IP4 0.0.0.0',
-    'a=rtcp:9 IN IP4 0.0.0.0',
-    `a=ice-ufrag:${iceUfrag}`,
-    `a=ice-pwd:${icePwd}`,
-    'a=ice-options:trickle',
-    `a=fingerprint:${fingerprintAlgorithm} ${fingerprint}`,
-    `a=setup:${setup}`,
-    'a=mid:1',
-    'a=sendrecv',
-    'a=rtcp-mux',
-    'a=rtcp-rsize',
-    `a=rtcp-fb:${videoCodec.payloadType} nack`,
-    `a=rtcp-fb:${videoCodec.payloadType} nack pli`,
-    `a=rtcp-fb:${videoCodec.payloadType} ccm fir`,
-    `a=rtpmap:${getSdpRtpmap(videoCodec)}`,
-  );
-
-  const videoFmtp = buildSdpFmtp(videoCodec);
-  if (videoFmtp) lines.push(videoFmtp);
-
-  lines.push(
-    `a=ssrc:${videoSsrc} cname:rtctransport`,
-    `a=ssrc:${videoSsrc} msid:local video0`,
-  );
-
-  return lines.join('\r\n') + '\r\n';
+  return buildSdpFromParams({
+    session: {
+      iceUfrag: params.iceUfrag,
+      icePwd: params.icePwd,
+      fingerprint: params.fingerprint,
+      fingerprintAlgorithm: params.fingerprintAlgorithm,
+      setup: params.setup,
+    },
+    media: [
+      {
+        type: 'audio',
+        mid: '0',
+        direction: 'sendrecv',
+        ssrc: params.audioSsrc,
+        codecs: [params.audioCodec],
+        headerExtensions: AUDIO_HEADER_EXTENSIONS,
+      },
+      {
+        type: 'video',
+        mid: '1',
+        direction: 'sendrecv',
+        ssrc: params.videoSsrc,
+        codecs: [params.videoCodec],
+        rtcpFeedback: VIDEO_RTCP_FEEDBACK,
+        headerExtensions: VIDEO_HEADER_EXTENSIONS,
+      },
+    ],
+  });
 }
 
 interface ParsedCandidate {
@@ -373,6 +347,18 @@ function initRtpPipeline(): void {
     maxBps: 2000000,
   });
   log(`Congestion control: ${activeCcAlgorithm.toUpperCase()}`);
+
+  // Initialize pacer — wired to transport for actual sending
+  pacer = new Pacer({
+    pacingRateBps: 300000,
+    burstIntervalMs: 5,
+    queueTimeLimitMs: 2000,
+    onSend: (packet) => {
+      transport!.send(packet.data);
+    },
+  });
+  pacer.start();
+  log('Pacer started (token-bucket, priority queues)');
 }
 
 // Handle received RTP packets (audio + video)
@@ -471,7 +457,7 @@ function onRtcpReceived(data: Uint8Array, _receiveTime: number): void {
       if (videoNackHandler) {
         const retransmits = videoNackHandler.handleIncomingNack(data);
         for (const pkt of retransmits) {
-          transport!.send(pkt);
+          sendPacket(pkt, PacketPriority.Retransmission);
         }
         if (retransmits.length > 0) {
           log(`Retransmitted ${retransmits.length} packets (NACK)`, 'debug');
@@ -512,6 +498,10 @@ function onRtcpReceived(data: Uint8Array, _receiveTime: number): void {
             block.fractionLost || 0,
             performance.now()
           );
+        }
+        // Update pacer rate from CC (1.5x target to allow headroom)
+        if (pacer) {
+          pacer.setPacingRate(Math.round(congestionController.getTargetBitrateBps() * 1.5));
         }
       }
     }
@@ -737,10 +727,11 @@ async function startMediaCapture(): Promise<void> {
     onQp: (qp: number) => { lastQp = qp; },
     onFrame: (encodedFrame: Uint8Array, isKeyframe: boolean, _timestamp: number) => {
       if (callState!.state !== 'connected') return;
+      lastFrameSizeKb = encodedFrame.length / 1024;
       const rtpPackets = videoPacketizer!.packetize(encodedFrame, isKeyframe, TIMESTAMP_INCREMENT);
       const nowMs = performance.now();
       for (const pkt of rtpPackets) {
-        transport!.send(pkt);
+        sendPacket(pkt, PacketPriority.Video);
         bytesSent += pkt.length;
         const seqNum = (pkt[2] << 8) | pkt[3];
         // Buffer for NACK retransmission
@@ -752,7 +743,7 @@ async function startMediaCapture(): Promise<void> {
           const fecPacket = videoFecEncoder.addPacket(
               seqNum, pkt.slice(12), _timestamp);
           if (fecPacket) {
-            transport!.send(fecPacket.data);
+            sendPacket(fecPacket.data, PacketPriority.Fec);
           }
         }
         // Feed CC with sent packet info
@@ -763,7 +754,7 @@ async function startMediaCapture(): Promise<void> {
       // Flush FEC on keyframes for clean recovery boundaries
       if (isKeyframe && videoFecEncoder) {
         const flushed = videoFecEncoder.flush();
-        if (flushed) transport!.send(flushed.data);
+        if (flushed) sendPacket(flushed.data, PacketPriority.Fec);
       }
       framesSent++;
       packetsSent += rtpPackets.length;
@@ -811,7 +802,7 @@ async function startMediaCapture(): Promise<void> {
       onFrame: (encodedFrame: Uint8Array) => {
         if (callState!.state !== 'connected') return;
         const rtpPacket = audioPacketizer!.packetize(encodedFrame);
-        transport!.send(rtpPacket);
+        sendPacket(rtpPacket, PacketPriority.Audio);
         audioPacketsSent++;
       },
     });
@@ -830,6 +821,7 @@ function hangup(): void {
   if (rtcpTimer) { clearInterval(rtcpTimer); rtcpTimer = null; }
   if (nackTimer) { clearInterval(nackTimer); nackTimer = null; }
   if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+  if (pacer) { pacer.stop(); pacer = null; }
   congestionController = null;
   videoNackHandler = null;
   videoKeyframeHandler = null;
@@ -850,7 +842,7 @@ function hangup(): void {
   bytesSent = 0; bytesReceived = 0;
   audioPacketsSent = 0; audioPacketsReceived = 0;
   bitrateHistory = []; qpHistory = []; lossHistory = []; jitterHistory = [];
-  resolutionHistory = []; fpsHistory = [];
+  resolutionHistory = []; fpsHistory = []; frameSizeHistory = [];
   lastBytesReceived = 0; lastPacketsReceived = 0; lastPacketsLost = 0; lastQp = 0;
   statsEl.innerHTML = '';
   log('Call ended');
@@ -951,13 +943,15 @@ function updateStats(): void {
   qpHistory.push(lastQp);
   lossHistory.push(lossRate);
   jitterHistory.push(jitterMs);
-  const currentResKpx = (activeResolution.width * activeResolution.height) / 1000;
-  resolutionHistory.push(currentResKpx);
+  const macroblocks = Math.ceil(activeResolution.width / 16) * Math.ceil(activeResolution.height / 16);
+  resolutionHistory.push(macroblocks);
+  frameSizeHistory.push(lastFrameSizeKb);
   if (bitrateHistory.length > 60) bitrateHistory.shift();
   if (qpHistory.length > 60) qpHistory.shift();
   if (lossHistory.length > 60) lossHistory.shift();
   if (jitterHistory.length > 60) jitterHistory.shift();
   if (resolutionHistory.length > 60) resolutionHistory.shift();
+  if (frameSizeHistory.length > 60) frameSizeHistory.shift();
 
   const fps = framesReceived > 0 ? Math.round(framesReceived / ((Date.now() - (window as any).__callStartTime || Date.now()) / 1000)) : 0;
   if (!(window as any).__callStartTime) (window as any).__callStartTime = Date.now();
@@ -980,6 +974,7 @@ function updateStats(): void {
           <div class="stat-item"><span class="stat-label">FPS</span><span class="stat-value">${fps}</span></div>
           <div class="stat-item"><span class="stat-label">Frames</span><span class="stat-value">${framesSent}↑ ${framesReceived}↓</span></div>
           <div class="stat-item"><span class="stat-label">QP (est)</span><span class="stat-value">${lastQp}</span></div>
+          <div class="stat-item"><span class="stat-label">Frame size</span><span class="stat-value">${lastFrameSizeKb.toFixed(1)} KB</span></div>
         </div>
       </div>
       <div>
@@ -1013,8 +1008,9 @@ function updateStats(): void {
     drawGraph(graphQp, qpHistory, 'QP', '', 51);
     drawGraph(graphLoss, lossHistory, 'Loss', '%', 10);
     drawGraph(graphJitter, jitterHistory, 'Jitter', ' ms');
-    drawGraph(graphResolution, resolutionHistory, 'Resolution', ' kpx');
+    drawGraph(graphResolution, resolutionHistory, 'Macroblocks', ' MBs');
     drawGraph(graphFps, fpsHistory, 'FPS', '', 60);
+    drawGraph(graphFrameSize, frameSizeHistory, 'Frame Size', ' KB');
   }
 }
 

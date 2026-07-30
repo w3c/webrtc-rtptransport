@@ -9,11 +9,13 @@ low-level `RtcTransport` browser API ([W3C spec](https://w3c.github.io/webrtc-rt
 ┌──────────────────────────────────────────────────────────────────┐
 │  Application (main.ts)                                           │
 ├──────────────────────────────────────────────────────────────────┤
-│  Call State Machine │ Signaling │ SDP Parser                     │
+│  Call State Machine │ Signaling │ SDP Builder/Parser             │
 ├──────────────────────────────────────────────────────────────────┤
 │  Video/Audio Capture │ Multi-codec Packetizers │ Jitter Buffer   │
 ├──────────────────────────────────────────────────────────────────┤
 │  Error Recovery (NACK │ PLI/FIR │ XOR FEC)                       │
+├──────────────────────────────────────────────────────────────────┤
+│  Pacer (Token-bucket │ Priority Queues │ Queue-driven Rate)      │
 ├──────────────────────────────────────────────────────────────────┤
 │  Congestion Control (Simple AIMD / GCC RFC 8698)                 │
 ├──────────────────────────────────────────────────────────────────┤
@@ -30,9 +32,11 @@ low-level `RtcTransport` browser API ([W3C spec](https://w3c.github.io/webrtc-rt
 - **Multi-codec video**: VP8, VP9, H.264, HEVC, AV1 (with per-codec packetizer/depacketizer)
 - **Multi-codec audio**: Opus, G.711 µ-law (PCMU), G.711 A-law (PCMA), AAC-LC
 - **Congestion control**: Simple AIMD and full GCC (RFC 8698) with delay-based + loss-based BWE
+- **Pacing**: Token-bucket pacer with burst control, priority queues (audio > retransmit > video > FEC), and queue-driven rate opening
 - **Error recovery**: NACK retransmission, PLI/FIR keyframe requests, XOR-based FEC (RFC 5109)
 - **Jitter buffer**: Fixed-delay audio jitter buffer with reordering
-- **Stats & graphs**: Real-time bitrate, QP, jitter, packet loss, resolution, FPS graphs
+- **Stats & graphs**: Real-time bitrate, QP, frame size, jitter, packet loss, resolution, FPS graphs
+- **SDP builder/parser**: Structured SDP generation with per-codec fmtp, RTCP feedback, header extensions
 - **Interoperability**: Communicates with standard RTCPeerConnection peers
 
 ## Prerequisites
@@ -84,8 +88,6 @@ rtctransport-sample/
 │   ├── main.ts                   # Application entry point
 │   ├── call-state-machine.ts     # JSEP-inspired state machine
 │   ├── signaling.ts              # WebSocket signaling client
-│   ├── types/
-│   │   └── global.d.ts           # Browser API type declarations
 │   ├── rtp/
 │   │   ├── rtp-packet.ts         # RTP parser/serializer (RFC 3550)
 │   │   ├── rtcp-packet.ts        # RTCP SR/RR/BYE (RFC 3550 §6)
@@ -114,7 +116,8 @@ rtctransport-sample/
 │   │       ├── loss-based-bwe.ts       # Loss-based bandwidth estimation
 │   │       └── acknowledged-bitrate-estimator.ts
 │   ├── transport/
-│   │   └── rtc-transport-adapter.ts  # RtcTransport API wrapper
+│   │   ├── rtc-transport-adapter.ts  # RtcTransport API wrapper
+│   │   └── pacer.ts              # Token-bucket pacer with priority queues
 │   ├── media/
 │   │   ├── video-capture.ts       # getUserMedia + WebCodecs encoder
 │   │   ├── video-playback.ts      # WebCodecs decoder + canvas rendering
@@ -122,7 +125,10 @@ rtctransport-sample/
 │   │   ├── audio-playback.ts      # Web Audio API playback
 │   │   └── jitter-buffer.ts       # Fixed-delay audio jitter buffer
 │   ├── sdp/
-│   │   └── sdp-parser.ts         # SDP parsing + fingerprint utility
+│   │   ├── sdp-parser.ts         # SDP parsing (single + multi-section)
+│   │   └── sdp-builder.ts        # Structured SDP builder (codecs, fmtp, RTCP-FB)
+│   ├── types/
+│   │   └── rtc-transport.d.ts    # Full W3C RtcTransport API type declarations
 │   └── recovery/
 │       ├── index.ts               # Recovery module exports
 │       ├── nack-handler.ts        # NACK gap detection + retransmission (RFC 4585)
@@ -145,6 +151,19 @@ Full Google Congestion Control implementation matching the WebRTC native code:
 - **AimdRateControl**: Multiplicative increase near unknown capacity, additive near max
 - **LossBasedBwe**: 2% low / 10% high thresholds, RTT backoff at 300ms
 - **AcknowledgedBitrateEstimator**: Throughput from ACK feedback
+
+## Pacing
+
+Token-bucket pacer based on WebRTC's `PacingController` (`modules/pacing/pacing_controller.cc`):
+
+- **Debt-based gating**: Media debt accumulates when packets are sent (proportional to
+  packet size and inversely proportional to pacing rate). Debt drains over time.
+- **Burst control**: Maximum 63KB burst per 5ms interval (matches WebRTC constants).
+- **5-level priority queues**: Audio > Retransmission > Video > FEC > Padding.
+- **Audio fast path**: Audio packets bypass the pacer when media debt < 1ms (unpaced, per WebRTC design).
+- **Queue-driven rate boost**: When average queue delay approaches 2s, effective rate is boosted
+  up to 2.5× to drain backlog.
+- **CC integration**: Pacing rate is set to 1.5× the CC target bitrate (headroom for retransmissions/FEC).
 
 ## Error Recovery
 
@@ -199,7 +218,7 @@ is handled by WebRTC's `DatagramConnectionInternal` at `third_party/webrtc/pc/`.
 │  JavaScript Application (this project)                               │
 │  ┌─ sendPackets() ──────────── getReceivedPackets() ──────────────┐  │
 └──┼────────────────────────────────────────────────────────────────┼──┘
-   │                     Blink IDL Bindings                          │
+   │                     Blink IDL Bindings                         │
 ┌──┼────────────────────────────────────────────────────────────────┼──┐
 │  ▼  RtcTransport (Blink, main thread)                             ▲  │
 │  │   • Queues packets in pending buffers until initialized        │  │

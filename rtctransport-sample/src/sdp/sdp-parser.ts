@@ -1,5 +1,8 @@
 // SDP Parser & Utilities
 // Parses SDP from a remote WebRTC peer to extract ICE, DTLS, and codec parameters.
+// Supports multi-section SDP with fmtp, rtcp-fb, and header extensions.
+
+// ─── Basic Types (backward-compatible) ──────────────────────────────────────
 
 export interface ParsedIceCandidate {
   foundation: string;
@@ -16,6 +19,8 @@ export interface ParsedCodec {
   codec: string;
   clockRate: number;
   channels: number;
+  fmtp?: string;
+  rtcpFeedback?: string[];
 }
 
 export interface ParsedSdp {
@@ -31,66 +36,154 @@ export interface ParsedSdp {
   mediaType: string;
 }
 
-export function parseSdp(sdp: string): ParsedSdp {
+// ─── Full Multi-Section Parsed SDP ──────────────────────────────────────────
+
+export interface ParsedMediaSection {
+  type: 'audio' | 'video';
+  mid: string;
+  direction: string;
+  ssrcs: number[];
+  codecs: ParsedCodec[];
+  headerExtensions: Array<{ id: number; uri: string }>;
+}
+
+export interface FullParsedSdp {
+  iceUfrag: string;
+  icePwd: string;
+  fingerprint: string;
+  fingerprintAlgorithm: string;
+  setup: string;
+  bundleGroup: string[];
+  candidates: ParsedIceCandidate[];
+  mediaSections: ParsedMediaSection[];
+}
+
+/**
+ * Parse a full SDP into structured multi-section format.
+ */
+export function parseFullSdp(sdp: string): FullParsedSdp {
   const lines = sdp.split(/\r?\n/);
 
-  const result: ParsedSdp = {
+  const result: FullParsedSdp = {
     iceUfrag: '',
     icePwd: '',
     fingerprint: '',
     fingerprintAlgorithm: '',
     setup: '',
-    ssrcs: [],
+    bundleGroup: [],
     candidates: [],
-    codecs: [],
-    mid: '',
-    mediaType: '',
+    mediaSections: [],
   };
 
-  let inMediaSection = false;
+  let currentSection: ParsedMediaSection | null = null;
 
   for (const line of lines) {
-    if (line.startsWith('m=')) {
-      inMediaSection = true;
-      const parts = line.substring(2).split(' ');
-      result.mediaType = parts[0];
+    // Session-level attributes (before first m= or shared)
+    if (line.startsWith('a=group:BUNDLE ')) {
+      result.bundleGroup = line.substring('a=group:BUNDLE '.length).split(' ');
+      continue;
     }
 
-    if (line.startsWith('a=ice-ufrag:')) {
+    if (line.startsWith('m=')) {
+      // Start new media section
+      if (currentSection) result.mediaSections.push(currentSection);
+      const parts = line.substring(2).split(' ');
+      currentSection = {
+        type: parts[0] as 'audio' | 'video',
+        mid: '',
+        direction: 'sendrecv',
+        ssrcs: [],
+        codecs: [],
+        headerExtensions: [],
+      };
+      continue;
+    }
+
+    if (line.startsWith('a=ice-ufrag:') && !result.iceUfrag) {
       result.iceUfrag = line.substring('a=ice-ufrag:'.length);
-    } else if (line.startsWith('a=ice-pwd:')) {
+    } else if (line.startsWith('a=ice-pwd:') && !result.icePwd) {
       result.icePwd = line.substring('a=ice-pwd:'.length);
-    } else if (line.startsWith('a=fingerprint:')) {
+    } else if (line.startsWith('a=fingerprint:') && !result.fingerprint) {
       const fpParts = line.substring('a=fingerprint:'.length).split(' ');
       result.fingerprintAlgorithm = fpParts[0];
       result.fingerprint = fpParts.slice(1).join(' ');
-    } else if (line.startsWith('a=setup:')) {
+    } else if (line.startsWith('a=setup:') && !result.setup) {
       result.setup = line.substring('a=setup:'.length);
-    } else if (line.startsWith('a=mid:')) {
-      result.mid = line.substring('a=mid:'.length);
-    } else if (line.startsWith('a=ssrc:')) {
+    } else if (line.startsWith('a=mid:') && currentSection) {
+      currentSection.mid = line.substring('a=mid:'.length);
+    } else if (line.startsWith('a=ssrc:') && currentSection) {
       const ssrcMatch = line.match(/^a=ssrc:(\d+)/);
       if (ssrcMatch) {
         const ssrc = parseInt(ssrcMatch[1], 10);
-        if (!result.ssrcs.includes(ssrc)) {
-          result.ssrcs.push(ssrc);
+        if (!currentSection.ssrcs.includes(ssrc)) {
+          currentSection.ssrcs.push(ssrc);
         }
       }
     } else if (line.startsWith('a=candidate:')) {
       const candidate = parseIceCandidate(line);
-      if (candidate) {
-        result.candidates.push(candidate);
-      }
-    } else if (line.startsWith('a=rtpmap:')) {
+      if (candidate) result.candidates.push(candidate);
+    } else if (line.startsWith('a=rtpmap:') && currentSection) {
       const codec = parseRtpmap(line);
-      if (codec) {
-        result.codecs.push(codec);
+      if (codec) currentSection.codecs.push(codec);
+    } else if (line.startsWith('a=fmtp:') && currentSection) {
+      const match = line.match(/^a=fmtp:(\d+)\s+(.+)/);
+      if (match) {
+        const pt = parseInt(match[1], 10);
+        const codec = currentSection.codecs.find(c => c.payloadType === pt);
+        if (codec) codec.fmtp = match[2];
+      }
+    } else if (line.startsWith('a=rtcp-fb:') && currentSection) {
+      const match = line.match(/^a=rtcp-fb:(\d+)\s+(.+)/);
+      if (match) {
+        const pt = parseInt(match[1], 10);
+        const codec = currentSection.codecs.find(c => c.payloadType === pt);
+        if (codec) {
+          if (!codec.rtcpFeedback) codec.rtcpFeedback = [];
+          codec.rtcpFeedback.push(match[2]);
+        }
+      }
+    } else if (line.startsWith('a=extmap:') && currentSection) {
+      const match = line.match(/^a=extmap:(\d+)\s+(.+)/);
+      if (match) {
+        currentSection.headerExtensions.push({
+          id: parseInt(match[1], 10),
+          uri: match[2],
+        });
+      }
+    } else if (currentSection) {
+      // Direction attributes
+      if (line === 'a=sendrecv' || line === 'a=sendonly' ||
+          line === 'a=recvonly' || line === 'a=inactive') {
+        currentSection.direction = line.substring(2);
       }
     }
   }
 
+  if (currentSection) result.mediaSections.push(currentSection);
   return result;
 }
+
+// ─── Legacy single-section parser (backward-compatible) ─────────────────────
+
+export function parseSdp(sdp: string): ParsedSdp {
+  const full = parseFullSdp(sdp);
+  const firstSection = full.mediaSections[0];
+
+  return {
+    iceUfrag: full.iceUfrag,
+    icePwd: full.icePwd,
+    fingerprint: full.fingerprint,
+    fingerprintAlgorithm: full.fingerprintAlgorithm,
+    setup: full.setup,
+    ssrcs: full.mediaSections.flatMap(s => s.ssrcs),
+    candidates: full.candidates,
+    codecs: full.mediaSections.flatMap(s => s.codecs),
+    mid: firstSection?.mid ?? '',
+    mediaType: firstSection?.type ?? '',
+  };
+}
+
+// ─── Utility Functions ──────────────────────────────────────────────────────
 
 function parseIceCandidate(line: string): ParsedIceCandidate | null {
   const str = line.startsWith('a=') ? line.substring(2) : line;

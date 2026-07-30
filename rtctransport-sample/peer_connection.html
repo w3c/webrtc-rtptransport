@@ -168,12 +168,16 @@
           <canvas id="graphJitter"></canvas>
         </div>
         <div class="graph-box">
-          <div class="label">Resolution over time</div>
+          <div class="label">Frame size in MBs over time</div>
           <canvas id="graphResolution"></canvas>
         </div>
         <div class="graph-box">
           <div class="label">FPS over time</div>
           <canvas id="graphFps"></canvas>
+        </div>
+        <div class="graph-box">
+          <div class="label">Frame size over time (KB)</div>
+          <canvas id="graphFrameSize"></canvas>
         </div>
       </div>
     </section>
@@ -207,6 +211,7 @@
     const graphJitterEl = document.getElementById('graphJitter');
     const graphResolutionEl = document.getElementById('graphResolution');
     const graphFpsEl = document.getElementById('graphFps');
+    const graphFrameSizeEl = document.getElementById('graphFrameSize');
 
     const RESOLUTIONS = {
       '320x240': {label: 'QVGA', width: 320, height: 240},
@@ -250,6 +255,7 @@
     const jitterHistory = [];
     const resolutionHistory = [];
     const fpsHistory = [];
+    const frameSizeHistory = [];
 
     function drawGraph(canvas, dataPoints, label, unit, maxVal) {
       const ctx = canvas.getContext('2d');
@@ -327,8 +333,9 @@
       drawGraph(graphQpEl, qpHistory, 'QP', '', 51);
       drawGraph(graphLossEl, lossHistory, 'Loss', '%', 10);
       drawGraph(graphJitterEl, jitterHistory, 'Jitter', 'ms', 100);
-      drawGraph(graphResolutionEl, resolutionHistory, 'Resolution (kpx)', '');
+      drawGraph(graphResolutionEl, resolutionHistory, 'Macroblocks', ' MBs');
       drawGraph(graphFpsEl, fpsHistory, 'FPS', '', 60);
+      drawGraph(graphFrameSizeEl, frameSizeHistory, 'Frame Size', 'KB');
       graphFrame = window.requestAnimationFrame(renderGraphs);
     }
 
@@ -496,6 +503,7 @@
       jitterHistory.length = 0;
       resolutionHistory.length = 0;
       fpsHistory.length = 0;
+      frameSizeHistory.length = 0;
       graphsVisible = false;
       graphsPanelEl.classList.remove('visible');
       btnToggleGraphs.textContent = 'Show Graphs';
@@ -545,6 +553,7 @@
               <div class="stat-item"><span class="stat-label">Resolution</span><span class="stat-value">${data.resolution}</span></div>
               <div class="stat-item"><span class="stat-label">FPS</span><span class="stat-value">${Number.isFinite(data.fps) ? data.fps.toFixed(1) : '—'}</span></div>
               <div class="stat-item"><span class="stat-label">QP</span><span class="stat-value">${Number.isFinite(data.qp) ? Math.round(data.qp) : '—'}</span></div>
+              <div class="stat-item"><span class="stat-label">Frame size</span><span class="stat-value">${Number.isFinite(data.frameSizeKb) && data.frameSizeKb > 0 ? data.frameSizeKb.toFixed(1) + ' KB' : '—'}</span></div>
             </div>
           </div>
           <div>
@@ -622,16 +631,32 @@
             (inboundAudio?.jitter || 0) * 1000);
         const resolutionKpx =
             inboundVideo?.frameWidth && inboundVideo?.frameHeight ?
-            inboundVideo.frameWidth * inboundVideo.frameHeight / 1000 :
+            Math.ceil(inboundVideo.frameWidth / 16) * Math.ceil(inboundVideo.frameHeight / 16) :
             0;
         const rttMs =
             candidatePair?.currentRoundTripTime != null ?
             candidatePair.currentRoundTripTime * 1000 :
             null;
-        const qp =
-            inboundVideo?.qpSum != null && inboundVideo?.framesDecoded ?
-            inboundVideo.qpSum / Math.max(1, inboundVideo.framesDecoded) :
-            0;
+
+        // QP: use per-interval delta (not cumulative average)
+        const currentQpSum = inboundVideo?.qpSum || outboundVideo?.qpSum || 0;
+        const currentFramesDecoded = inboundVideo?.framesDecoded || outboundVideo?.framesEncoded || 0;
+        let qp = 0;
+        if (statsBaseline && statsBaseline.qpSum != null) {
+          const deltaQp = currentQpSum - statsBaseline.qpSum;
+          const deltaFrames = currentFramesDecoded - statsBaseline.framesDecoded;
+          qp = deltaFrames > 0 ? deltaQp / deltaFrames : 0;
+        }
+
+        // Frame size: bytes per frame in KB
+        const currentBytesSentVideo = outboundVideo?.bytesSent || 0;
+        const currentFramesEncoded = outboundVideo?.framesEncoded || 0;
+        let frameSizeKb = 0;
+        if (statsBaseline && statsBaseline.videoBytesSent != null) {
+          const deltaBytes = currentBytesSentVideo - statsBaseline.videoBytesSent;
+          const deltaFrames = currentFramesEncoded - statsBaseline.framesEncoded;
+          frameSizeKb = deltaFrames > 0 ? (deltaBytes / deltaFrames) / 1024 : 0;
+        }
 
         const now = performance.now();
         let bitrateKbps = 0;
@@ -654,6 +679,10 @@
           bytesSent,
           packetsLost,
           packetsReceived,
+          qpSum: currentQpSum,
+          framesDecoded: currentFramesDecoded,
+          videoBytesSent: currentBytesSentVideo,
+          framesEncoded: currentFramesEncoded,
           time: now,
         };
 
@@ -666,12 +695,14 @@
         pushHistory(jitterHistory, jitterMs);
         pushHistory(resolutionHistory, resolutionKpx);
         pushHistory(fpsHistory, fps);
+        pushHistory(frameSizeHistory, frameSizeKb);
 
         updateStatsDisplay({
           audioCodec,
           audioPacketsSent: outboundAudio?.packetsSent || 0,
           audioPacketsRecv: inboundAudio?.packetsReceived || 0,
           bitrateKbps,
+          frameSizeKb,
           fps,
           jitterMs,
           lossPercent,
