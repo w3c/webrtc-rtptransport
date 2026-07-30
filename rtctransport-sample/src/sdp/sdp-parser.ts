@@ -1,4 +1,4 @@
-// SDP Parser
+// SDP Parser & Utilities
 // Parses SDP from a remote WebRTC peer to extract ICE, DTLS, and codec parameters.
 
 export interface ParsedIceCandidate {
@@ -132,4 +132,11 @@ export function getLocalSetupRole(remoteSetup: string): string {
     case 'passive': return 'active';
     default: return 'active';
   }
+}
+
+export function formatFingerprint(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  return Array.from(bytes)
+    .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
+    .join(':');
 }

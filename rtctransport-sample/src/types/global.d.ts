@@ -1,9 +1,4 @@
 // Global type declarations for browser APIs not in standard TypeScript libs
-//
-// NOTE: The full W3C RtcTransport spec types are in ./rtc-transport.d.ts
-// (informational — not included automatically since the Chromium implementation
-// differs from the spec). The types below reflect the *current* partial
-// Chromium implementation.
 
 // RtcTransport API (experimental, behind flag — current Chromium implementation)
 interface RtcTransportConfig {

@@ -24,13 +24,20 @@ import { VideoPlayback } from './media/video-playback';
 import { AudioCapture } from './media/audio-capture';
 import { AudioPlayback } from './media/audio-playback';
 import { JitterBuffer } from './media/jitter-buffer';
-import { formatFingerprint } from './sdp/sdp-builder';
-import { parseSdp, parseFingerprint, getLocalSetupRole } from './sdp/sdp-parser';
+import { parseSdp, parseFingerprint, getLocalSetupRole, formatFingerprint } from './sdp/sdp-parser';
 import {
   createCongestionController,
   type CongestionController,
   type CongestionControlAlgorithm,
 } from './cc/index';
+import {
+  NackHandler,
+  KeyframeRequestHandler,
+  FecEncoder,
+  FecDecoder,
+  parseNackPacket,
+  isPliOrFir,
+} from './recovery/index';
 import type { RtpSendStream } from './rtp/rtp-session';
 
 // UI elements
@@ -88,6 +95,12 @@ let activeAudioCodec: CodecInfo = AUDIO_CODECS.opus;
 let activeResolution = {width: 640, height: 480};
 let activeCcAlgorithm: CongestionControlAlgorithm = 'simple';
 let congestionController: CongestionController | null = null;
+// Error recovery
+let videoNackHandler: NackHandler | null = null;
+let videoKeyframeHandler: KeyframeRequestHandler | null = null;
+let videoFecEncoder: FecEncoder | null = null;
+let videoFecDecoder: FecDecoder | null = null;
+let nackTimer: number | null = null;
 // Stats
 let rtcpTimer: number | null = null;
 let statsTimer: number | null = null;
@@ -377,6 +390,30 @@ function onRtpReceived(data: Uint8Array, receiveTime: number): void {
     const pt = rtpPacket.header.payloadType;
 
     if (pt === activeVideoCodec.payloadType) {
+      const seq = rtpPacket.header.sequenceNumber;
+
+      // NACK: detect gaps and request retransmission
+      if (videoNackHandler) {
+        if (videoNackHandler.mediaSsrc === 0) {
+          videoNackHandler.mediaSsrc = rtpPacket.header.ssrc;
+        }
+        videoNackHandler.onPacketReceived(seq);
+      }
+      // Update keyframe handler's mediaSsrc
+      if (videoKeyframeHandler && videoKeyframeHandler.mediaSsrc === 0) {
+        videoKeyframeHandler.mediaSsrc = rtpPacket.header.ssrc;
+      }
+      // FEC: register media packet for potential recovery
+      if (videoFecDecoder) {
+        videoFecDecoder.addMediaPacket(
+            seq, rtpPacket.payload, rtpPacket.header.timestamp);
+        // Try recovery with newly arrived packet
+        const recovered = videoFecDecoder.tryRecovery();
+        for (const pkt of recovered) {
+          log(`FEC recovered seq=${pkt.seq}`, 'debug');
+        }
+      }
+
       const receiveStream = rtpSession!.getOrCreateReceiveStream(
         rtpPacket.header.ssrc,
         activeVideoCodec.clockRate
@@ -386,7 +423,14 @@ function onRtpReceived(data: Uint8Array, receiveTime: number): void {
       const result = videoDepacketizer!.depacketize(rtpPacket);
       if (result) {
         if (!decoderGotKeyframe) {
-          if (!result.isKeyframe) return;
+          if (!result.isKeyframe) {
+            // No keyframe yet — request one
+            if (videoKeyframeHandler) {
+              const pli = videoKeyframeHandler.generatePli();
+              if (pli && transport) transport.send(pli);
+            }
+            return;
+          }
           decoderGotKeyframe = true;
           log(`First video keyframe received! ts=${result.timestamp}, size=${result.frame.length}`);
         }
@@ -422,6 +466,33 @@ function onRtpReceived(data: Uint8Array, receiveTime: number): void {
 // Handle received RTCP packets
 function onRtcpReceived(data: Uint8Array, _receiveTime: number): void {
   try {
+    // Check for NACK (PT=205, FMT=1)
+    if (data.length >= 12 && data[1] === 205 && (data[0] & 0x1F) === 1) {
+      if (videoNackHandler) {
+        const retransmits = videoNackHandler.handleIncomingNack(data);
+        for (const pkt of retransmits) {
+          transport!.send(pkt);
+        }
+        if (retransmits.length > 0) {
+          log(`Retransmitted ${retransmits.length} packets (NACK)`, 'debug');
+        }
+      }
+      return;
+    }
+
+    // Check for PLI/FIR (PT=206)
+    if (data.length >= 12 && isPliOrFir(data)) {
+      if (videoKeyframeHandler) {
+        videoKeyframeHandler.handleIncoming(data);
+        // Force keyframe from encoder
+        if (videoCapture) {
+          videoCapture.requestKeyframe();
+        }
+        log('Keyframe requested by remote (PLI/FIR)', 'debug');
+      }
+      return;
+    }
+
     const packets = parseRtcpCompound(data);
     for (const pkt of packets) {
       if (pkt.type === 'SR') {
@@ -456,6 +527,44 @@ function startRtcpReporting(): void {
     const rr = rtpSession!.createReceiverReport();
     if (rr) transport.send(rr);
   }, 5000);
+
+  // Initialize error recovery handlers
+  initRecovery();
+}
+
+function initRecovery(): void {
+  // NACK handler (video only — audio uses jitter buffer concealment)
+  videoNackHandler = new NackHandler({
+    senderSsrc: LOCAL_VIDEO_SSRC,
+    mediaSsrc: 0, // Will be updated on first received video packet
+    nackRetransmitIntervalMs: 50,
+    maxRetransmits: 10,
+  });
+
+  // PLI/FIR handler
+  videoKeyframeHandler = new KeyframeRequestHandler({
+    senderSsrc: LOCAL_VIDEO_SSRC,
+    mediaSsrc: 0, // Updated on first received video packet
+    minIntervalMs: 1000,
+    onKeyframeRequested: () => {
+      if (videoCapture) videoCapture.requestKeyframe();
+    },
+  });
+
+  // FEC encoder (protect every 5 video packets with 1 FEC packet = ~20% overhead)
+  videoFecEncoder = new FecEncoder({groupSize: 5});
+  videoFecDecoder = new FecDecoder();
+
+  // NACK send timer — periodically send pending NACKs
+  nackTimer = window.setInterval(() => {
+    if (!transport || !videoNackHandler ||
+        callState!.state !== 'connected') return;
+    const nack = videoNackHandler.generateNack();
+    if (nack) {
+      transport.send(nack);
+      log(`Sent NACK for ${videoNackHandler.getPendingNackCount()} packets`, 'debug');
+    }
+  }, 20);
 }
 
 // Initialize transport
@@ -633,11 +742,28 @@ async function startMediaCapture(): Promise<void> {
       for (const pkt of rtpPackets) {
         transport!.send(pkt);
         bytesSent += pkt.length;
+        const seqNum = (pkt[2] << 8) | pkt[3];
+        // Buffer for NACK retransmission
+        if (videoNackHandler) {
+          videoNackHandler.bufferSentPacket(seqNum, pkt);
+        }
+        // Feed FEC encoder
+        if (videoFecEncoder) {
+          const fecPacket = videoFecEncoder.addPacket(
+              seqNum, pkt.slice(12), _timestamp);
+          if (fecPacket) {
+            transport!.send(fecPacket.data);
+          }
+        }
         // Feed CC with sent packet info
         if (congestionController) {
-          const seqNum = (pkt[2] << 8) | pkt[3]; // RTP sequence number
           congestionController.onPacketSent(pkt.length, nowMs, seqNum);
         }
+      }
+      // Flush FEC on keyframes for clean recovery boundaries
+      if (isKeyframe && videoFecEncoder) {
+        const flushed = videoFecEncoder.flush();
+        if (flushed) transport!.send(flushed.data);
       }
       framesSent++;
       packetsSent += rtpPackets.length;
@@ -702,8 +828,13 @@ function hangup(): void {
   callState!.close();
 
   if (rtcpTimer) { clearInterval(rtcpTimer); rtcpTimer = null; }
+  if (nackTimer) { clearInterval(nackTimer); nackTimer = null; }
   if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
   congestionController = null;
+  videoNackHandler = null;
+  videoKeyframeHandler = null;
+  videoFecEncoder = null;
+  videoFecDecoder = null;
   if (videoCapture) { videoCapture.stop(); videoCapture = null; }
   if (videoPlayback) { videoPlayback.stop(); videoPlayback = null; }
   if (audioCapture) { audioCapture.stop(); audioCapture = null; }
@@ -868,6 +999,9 @@ function updateStats(): void {
           <div class="stat-item"><span class="stat-label">Pkts recv</span><span class="stat-value">${packetsReceived}</span></div>
           <div class="stat-item"><span class="stat-label">Loss</span><span class="stat-value">${lossRate.toFixed(1)}%</span></div>
           <div class="stat-item"><span class="stat-label">Jitter</span><span class="stat-value">${jitterMs.toFixed(1)} ms</span></div>
+          <div class="stat-item"><span class="stat-label">NACK sent</span><span class="stat-value">${videoNackHandler?.stats.nacksSent ?? 0}</span></div>
+          <div class="stat-item"><span class="stat-label">FEC recovered</span><span class="stat-value">${videoFecDecoder?.stats.packetsRecoveredByFec ?? 0}</span></div>
+          <div class="stat-item"><span class="stat-label">PLI sent</span><span class="stat-value">${videoKeyframeHandler?.stats.pliSent ?? 0}</span></div>
         </div>
       </div>
     </div>
