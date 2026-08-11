@@ -843,21 +843,50 @@ dictionary RtcPacketSentInfo {
 : <dfn for="RtcPacketSentInfo" dict-member>sendTime</dfn>
 :: The actual timestamp that the packet was put on the wire.
 
-## RtcPacketReceived ## {#rtcpacketreceived}
+## RtcEcnMarking ## {#rtc-ecn-marking}
 <pre class="idl">
-dictionary RtcPacketReceived {
-  ArrayBuffer data;
-  DOMHighResTimeStamp receiveTime;
-  RtcNetworkRoute networkRoute;
+enum RtcEcnMarking {
+  "classic",
+  "l4s",
+  "experienced-congestion"
 };
 </pre>
-: <dfn for="RtcPacketReceived" dict-member>data</dfn>
+: <dfn for="RtcEcnMarking" enum-value>"classic"</dfn>
+:: The ECN field is `10`, indicating the ECT(0) codepoint used by classic ECN senders.
+
+: <dfn for="RtcEcnMarking" enum-value>"l4s"</dfn>
+:: The ECN field is `01`, indicating the ECT(1) codepoint used by L4S-aware senders.
+
+: <dfn for="RtcEcnMarking" enum-value>"experienced-congestion"</dfn>
+:: The ECN field is `11`, indicating that the packet experienced congestion.
+
+## RtcPacketReceived ## {#rtcpacketreceived}
+<pre class="idl">
+[Exposed=(Window,Worker)]
+interface RtcPacketReceived {
+  readonly attribute ArrayBuffer data;
+  readonly attribute DOMHighResTimeStamp receiveTime;
+  readonly attribute RtcEcnMarking? ecnMarking;
+  readonly attribute RtcNetworkRoute networkRoute;
+};
+</pre>
+: <dfn for="RtcPacketReceived" attribute>data</dfn>
 :: The byte buffer received.
 
-: <dfn for="RtcPacketReceived" dict-member>receiveTime</dfn>
+: <dfn for="RtcPacketReceived" attribute>receiveTime</dfn>
 :: The timestamp of packet receipt.
 
-: <dfn for="RtcPacketReceived" dict-member>networkRoute</dfn>
+: <dfn for="RtcPacketReceived" attribute>ecnMarking</dfn>
+:: The Explicit Congestion Notification (ECN) field of the IP packet as
+    received from the network, or `null` if the ECN field is `00`, indicating
+    a Not-ECN-Capable Transport packet.
+
+    This is receive-only metadata. It is not part of
+    {{RtcPacketReceived/data}}, and copying that data into an
+    {{RtcPacketToSend}} does not cause the received ECN marking to be applied
+    to the packet sent by {{RtcTransport/sendPackets()}}.
+
+: <dfn for="RtcPacketReceived" attribute>networkRoute</dfn>
 :: The route the packet arrived on.
 
 ## IceServer ## {#iceserver}
