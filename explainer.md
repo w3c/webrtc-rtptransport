@@ -90,7 +90,7 @@ as encryption.
 
 ## Examples
 
-### Example 1: Send packets
+### Example 1a: Send packets (async style)
 
 ```javascript
 
@@ -131,6 +131,67 @@ if (encrypted) {
     firstNetworkRoute,
     );
 }
+
+```
+
+### Example 1b: Send packets (callback style)
+
+```javascript
+
+let packetsToSend = [
+    {id: 1, data: new Uint8Array([0x01, 0x02, 0x03]).buffer, sendTime: null},
+    {id: 2, data: new Uint8Array([0x04, 0x05, 0x06]).buffer, sendTime: null},
+]
+
+
+let encrypted = false;
+let signaling = new Signaling({wssurl: "wss://example.com/rtpTransport.wss"});
+
+RTCPeerConnection.generateCertificate({
+    name: "ECDSA",
+    namedCurve: "P-256",
+}).then((certificate) => {
+    const transport = new RtcTransport({
+        name: "ExampleRtc",
+        transportControllerType: "automaticIceController",
+        certificates: [certificate],
+    });
+    transport.setFormat("ICE-DTLS/V0");
+
+    signaling.sendFingerPrints(certificate.getFingerprints());
+
+    signaling.onFingerprints = (event) => {
+        transport.setRemoteFingerprints(event.remoteFingerprints); // you can assume that they all arrive in one message
+    }
+    let remoteCandidates = [];
+
+    signaling.onCandidate = (event) => {
+        remoteCandidates.push(event.candidate);
+        transport.networkRouteController.setRemoteCandidates(remoteCandidates); // hopefully this supports multiple invocations
+    }
+    transport.networkRouteController.oncandidategathered = (event) => {
+        signaling.sendCandidate(event.candidate);
+    }
+
+    let packetSender = {timer: null, pair: null};
+
+    transport.networkRouteController.oncandidatepairupdated = (event) => {
+        packetSender.pair = event.candidatePair;
+
+        if (!encrypted) {
+            transport.establishEncryption(firstNetworkRoute).then((result) => {
+                encrypted = result;
+                packetSender.timer = window.setInterval(() => {
+                    let pkt = packetsToSend.pop();
+                    if (pkt) {
+                        pkt.sendTime = now + 1;
+                        transport.sendPackets([pkt], packetSender.pair);
+                    }
+                }, 1)
+            });
+        }
+    }
+});
 
 ```
 
