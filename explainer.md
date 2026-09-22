@@ -219,7 +219,7 @@ RTCPeerConnection.generateCertificate({
 // TODO
 ```
 
-### Example 5b: Encode, packetize, and send using a custom ML audio codec
+### Example 6a: Encode, packetize, and send using a custom ML audio codec
 
 A custom audio codec uses WebNN.  It expects the following to be provided:
 
@@ -263,14 +263,59 @@ async function sendCustomAudio() {
 }
 ```
 
-### Example 6: Implement bandwidth estimation, bitrate allocation, and encoder rate control
+### Example 6b: Receive and decode using a custom ML audio codec
+
+Use the same codec and audio format as Example 6a, with these application helpers:
+
+- createAudioDecoder(mlContext): load the matching model; decode(bytes) returns PCM.
+- createJitterBuffer(): accept packets with push(); yield ordered frames through an async iterator.
+- createAudioRenderer(): provide render(samples, timestamp), perhaps using Web Audio.
+
+```javascript
+async function receiveCustomAudio() {
+    const {transport} = await createRtcTransport();
+    const mlContext = await navigator.ml.createContext();
+    try {
+        const decoder = await createAudioDecoder(mlContext);
+        const jitterBuffer = createJitterBuffer();
+        const renderer = await createAudioRenderer();
+
+        const receivePackets = () => {
+            for (const packet of transport.getReceivedPacket()) {
+                if (packet.data.byteLength < 8) {
+                    console.warn("Audio packet is missing its header");
+                    continue;
+                }
+                const header = new DataView(packet.data);
+                jitterBuffer.push({
+                    sequenceNumber: header.getUint32(0),
+                    timestamp: header.getUint32(4),
+                    data: new Uint8Array(packet.data, 8),
+                });
+            }
+        };
+        transport.onpendingpacketsreceived = receivePackets;
+        receivePackets();
+
+        for await (const frame of jitterBuffer) {
+            const samples = await decoder.decode(frame.data);
+            await renderer.render(samples, frame.timestamp);
+        }
+    } finally {
+        transport.onpendingpacketsreceived = null;
+        mlContext.destroy();
+    }
+}
+```
+
+### Example 7: Implement bandwidth estimation, bitrate allocation, and encoder rate control
 
 ```javascript
 // TODO
 ```
 
 
-### Example 7: Send using specific send times (pacing)
+### Example 8: Send using specific send times (pacing)
 
 ```javascript
 // TODO
