@@ -219,6 +219,51 @@ RTCPeerConnection.generateCertificate({
 // TODO
 ```
 
+### Example 5b: Encode, packetize, and send using a custom ML audio codec
+
+A custom audio codec uses WebNN.  It expects the following to be provided:
+
+- createRtcTransport(): create an RTCTransport and networkRoute like in Example 1a.
+- createAudioEncoder(mlContext, options): load the model
+- captureMic(audioStream, options): capture microphone frames, probably using WebAudio's AudioWorklet.
+- AudioEncoder.encode(): encode PCM to bytes
+
+
+```javascript
+async function sendCustomAudio() {
+    const {transport, networkRoute} = await createRtcTransport();
+    const mlContext = await navigator.ml.createContext();
+    let audioStream;
+    try {
+        const encoder = await createAudioEncoder(mlContext);
+        audioStream = await navigator.mediaDevices.getUserMedia({audio: true});
+
+        let packetId = 1;
+        for await (const frame of captureMic(audioStream, options)) {
+            const encoded = await encoder.encode(frame.samples);
+            const packet = new ArrayBuffer(8 + encoded.byteLength);
+
+            const header = new DataView(packet);
+            header.setUint32(0, packetId);
+            header.setUint32(4, frame.timestamp);
+            new Uint8Array(packet, 8).set(encoded);
+
+            transport.sendPackets(
+                [{id: packetId++, data: packet, sendTime: performance.now()}],
+                networkRoute,
+            );
+        }
+    } finally {
+        if (audioStream) {
+            for (const track of audioStream.getTracks()) {
+                track.stop();
+            }
+        }
+        mlContext.destroy();
+    }
+}
+```
+
 ### Example 6: Implement bandwidth estimation, bitrate allocation, and encoder rate control
 
 ```javascript
@@ -231,5 +276,3 @@ RTCPeerConnection.generateCertificate({
 ```javascript
 // TODO
 ```
-
-
