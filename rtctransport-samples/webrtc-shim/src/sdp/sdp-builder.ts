@@ -42,6 +42,13 @@ export interface SdpMediaSection {
   rtcpFeedback?: string[];
   /** RTP header extensions. */
   headerExtensions?: Array<{ id: number; uri: string }>;
+  /**
+   * Non-standard shim-to-shim signal: the payload type used to carry XOR FEC
+   * repair packets (RFC 5109-style). Emitted as `a=x-shim-fec:<pt>`. Native
+   * WebRTC peers ignore this unknown attribute, so FEC only activates when both
+   * peers are the shim.
+   */
+  fecPayloadType?: number;
 }
 
 export interface SdpBuildOptions {
@@ -119,6 +126,9 @@ function buildMediaSection(
 
   if (section.type === 'video') {
     lines.push('a=rtcp-rsize');
+    if (section.fecPayloadType !== undefined) {
+      lines.push(`a=x-shim-fec:${section.fecPayloadType}`);
+    }
   }
 
   // Codecs

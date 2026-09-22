@@ -6,7 +6,7 @@ import {
   OveruseDetector,
   type OveruseStateType,
 } from './overuse-detector';
-import { AimdRateControl } from './aimd';
+import { AimdRateControl } from './aimd-rate-control';
 
 export interface BandwidthEstimatorOptions {
   initialBitrateBps?: number;

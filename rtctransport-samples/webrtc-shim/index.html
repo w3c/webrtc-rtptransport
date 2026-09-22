@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC Shim — Unified Call</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 1rem;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #1a1a1e; color: #e6e6e6;
+    }
+    h1 { font-size: 1.2rem; margin: 0 0 0.75rem; }
+    .backend-badge {
+      display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px;
+      background: #2b6cb0; color: #fff; font-size: 0.8rem; font-weight: 600;
+      margin-left: 0.5rem; vertical-align: middle;
+    }
+    .switcher { font-size: 0.8rem; margin: 0 0 1rem; }
+    .switcher a { color: #90cdf4; text-decoration: none; margin-right: 0.75rem; }
+    .switcher a.active { font-weight: 700; text-decoration: underline; }
+    .settings {
+      display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end;
+      margin-bottom: 0.75rem; padding: 0.6rem 0.75rem;
+      background: #0f0f12; border: 1px solid #2a2a30; border-radius: 8px;
+    }
+    .field { display: flex; flex-direction: column; gap: 0.2rem; }
+    .field label { font-size: 0.72rem; color: #a8a8b0; }
+    input, button, select {
+      font-size: 0.9rem; padding: 0.4rem 0.6rem; border-radius: 6px;
+      border: 1px solid #3a3a42; background: #26262c; color: #e6e6e6;
+    }
+    button { cursor: pointer; }
+    button:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .state {
+      font-size: 0.85rem; padding: 0.2rem 0.6rem; border-radius: 6px;
+      background: #26262c; border: 1px solid #3a3a42;
+    }
+    .videos {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 0.75rem; margin-bottom: 1rem;
+    }
+    .video-box { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
+    .video-box video { width: 100%; display: block; aspect-ratio: 4 / 3; object-fit: cover; }
+    .video-box .tag {
+      position: absolute; top: 6px; left: 8px; font-size: 0.75rem;
+      background: rgba(0,0,0,0.55); padding: 0.1rem 0.45rem; border-radius: 4px;
+    }
+    .meter { height: 10px; background: #26262c; border: 1px solid #3a3a42; border-radius: 5px; overflow: hidden; margin-top: 4px; }
+    .meter-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #68d391, #f6ad55, #fc8181); transition: width 60ms linear; }
+    .meter-label { font-size: 0.72rem; color: #a8a8b0; margin-top: 2px; }
+    .panel { margin: 0.6rem 0; background: #0f0f12; border: 1px solid #2a2a30; border-radius: 8px; padding: 0.6rem; }
+    .panel-title { font-size: 0.78rem; color: #a8a8b0; margin-bottom: 0.4rem; }
+    #statsTable { width: 100%; border-collapse: collapse; font-size: 0.75rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace; }
+    #statsTable th, #statsTable td {
+      text-align: left; padding: 3px 8px; border-bottom: 1px solid #26262c;
+    }
+    #statsTable th { color: #8a8a92; font-weight: 600; }
+    details.graphs summary {
+      cursor: pointer; font-size: 0.78rem; color: #a8a8b0; padding: 0.2rem 0;
+      user-select: none;
+    }
+    .graphs-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.6rem; margin-top: 0.6rem;
+    }
+    .graph-box .label { font-size: 0.72rem; color: #8a8a92; margin-bottom: 2px; }
+    .graph-box canvas {
+      width: 100%; height: 90px; border: 1px solid #26262c; border-radius: 4px;
+      background: #141418; display: block;
+    }
+    .log-panel {
+      white-space: pre-wrap; font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.75rem; background: #0f0f12; border: 1px solid #2a2a30;
+      border-radius: 8px; padding: 0.6rem; height: 200px; overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>WebRTC Shim — Unified Call <span id="backendLabel" class="backend-badge">…</span></h1>
+
+  <div class="switcher">
+    Backend:
+    <a id="linkProxy" href="?backend=proxy">WebRTC Proxy over RtcTransport</a>
+    <a id="linkNative" href="?backend=native">Native WebRTC</a>
+  </div>
+
+  <div class="settings">
+    <div class="field">
+      <label for="room">Room</label>
+      <input id="room" type="text" value="test-room">
+    </div>
+    <div class="field">
+      <label for="resolution">Camera resolution</label>
+      <select id="resolution">
+        <option value="qvga">QVGA (320×240)</option>
+        <option value="vga" selected>VGA (640×480)</option>
+        <option value="sd">SD (854×480)</option>
+        <option value="hd">HD (1280×720)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="videoCodec">Video codec</label>
+      <select id="videoCodec">
+        <option value="vp8" selected>VP8</option>
+        <option value="vp9">VP9</option>
+        <option value="h264">H.264</option>
+        <option value="hevc">HEVC</option>
+        <option value="av1">AV1</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="audioCodec">Audio codec</label>
+      <select id="audioCodec">
+        <option value="opus" selected>Opus</option>
+        <option value="pcmu">G.711 µ-law (PCMU)</option>
+        <option value="pcma">G.711 A-law (PCMA)</option>
+        <option value="aac">AAC-LC</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="ccAlgorithm">Congestion control</label>
+      <select id="ccAlgorithm">
+        <option value="gcc" selected>GCC (RFC 8698)</option>
+        <option value="aimd">AIMD</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="btnJoin">Join &amp; Call</button>
+    <button id="btnHangup" disabled>Hang Up</button>
+    <button id="btnMute" disabled>Mute mic</button>
+    <button id="btnCamera" disabled>Camera off</button>
+    <span>State: <span id="callState" class="state">idle</span></span>
+  </div>
+
+  <div class="videos">
+    <div class="video-box">
+      <span class="tag">Local</span>
+      <video id="localVideo" autoplay playsinline muted></video>
+      <div class="meter"><div id="meterLocal" class="meter-fill"></div></div>
+      <div class="meter-label">Local mic level (sent)</div>
+    </div>
+    <div class="video-box">
+      <span class="tag">Remote</span>
+      <video id="remoteVideo" autoplay playsinline></video>
+      <div class="meter"><div id="meterRemote" class="meter-fill"></div></div>
+      <div class="meter-label">Remote audio level (received)</div>
+    </div>
+  </div>
+
+  <div id="statsPanel" class="panel">
+    <div class="panel-title">Stats (getStats — same on both backends)</div>
+    <table id="statsTable">
+      <thead><tr><th>Stream</th><th>Packets</th><th>Bytes</th><th>Bitrate</th></tr></thead>
+      <tbody id="statsBody"><tr><td colspan="4">no data yet</td></tr></tbody>
+    </table>
+  </div>
+
+  <details id="graphsPanel" class="panel graphs">
+    <summary>Graphs (60s rolling window — click to expand)</summary>
+    <div class="graphs-grid">
+      <div class="graph-box"><div class="label">Send bitrate</div><canvas id="graphSendBitrate"></canvas></div>
+      <div class="graph-box"><div class="label">Recv bitrate</div><canvas id="graphRecvBitrate"></canvas></div>
+      <div class="graph-box"><div class="label">FPS (recv)</div><canvas id="graphFps"></canvas></div>
+      <div class="graph-box"><div class="label">Packet loss</div><canvas id="graphLoss"></canvas></div>
+      <div class="graph-box"><div class="label">Jitter</div><canvas id="graphJitter"></canvas></div>
+      <div class="graph-box"><div class="label">Frame size (send)</div><canvas id="graphFrameSize"></canvas></div>
+    </div>
+  </details>
+
+  <div id="log" class="log-panel"></div>
+
+  <script type="module">
+    // Highlight the active backend link.
+    const kind = new URLSearchParams(location.search).get('backend') === 'native' ? 'native' : 'proxy';
+    document.getElementById(kind === 'proxy' ? 'linkProxy' : 'linkNative').classList.add('active');
+  </script>
+  <script type="module" src="/dist/unified.js"></script>
+</body>
+</html>

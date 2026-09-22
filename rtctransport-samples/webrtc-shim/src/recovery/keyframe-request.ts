@@ -59,7 +59,7 @@ export class KeyframeRequestHandler {
     this.onKeyframeRequested = options.onKeyframeRequested ?? null;
 
     this._firSeqNum = 0;
-    this._lastRequestTime = 0;
+    this._lastRequestTime = Number.NEGATIVE_INFINITY;
 
     this.stats = {
       pliSent: 0,

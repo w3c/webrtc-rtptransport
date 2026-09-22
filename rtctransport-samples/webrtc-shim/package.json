@@ -1,16 +1,18 @@
 {
-  "name": "rtctransport-sample",
+  "name": "webrtc-shim",
   "version": "2.0.0",
   "description": "WebRTC application using RtcTransport low-level API with TypeScript RTP/RTCP stack",
   "type": "module",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --sourcemap --target=es2022",
+    "build": "esbuild src/unified-app.ts --bundle --outfile=dist/unified.js --format=esm --sourcemap --target=es2022",
     "build:server": "esbuild server.ts --bundle --outfile=dist/server.js --format=esm --platform=node --sourcemap --external:ws --target=es2022",
     "build:all": "npm run build && npm run build:server",
     "start": "node dist/server.js",
-    "start:dev": "node server.js",
+    "start:verbose": "node dist/server.js --verbose",
+    "start:dev": "npm run build:all && node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "watch": "esbuild src/main.ts --bundle --outfile=dist/main.js --format=esm --sourcemap --target=es2022 --watch"
+    "test": "esbuild test/recovery.test.ts --bundle --outfile=dist/test.js --format=esm --platform=node --target=es2022 && node dist/test.js",
+    "watch": "esbuild src/unified-app.ts --bundle --outfile=dist/unified.js --format=esm --sourcemap --target=es2022 --watch"
   },
   "dependencies": {
     "ws": "^8.16.0"

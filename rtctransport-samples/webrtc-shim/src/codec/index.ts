@@ -6,7 +6,7 @@ import { VP9_PAYLOAD_TYPE, VP9_CLOCK_RATE, Vp9Packetizer, Vp9Depacketizer } from
 import { H264_PAYLOAD_TYPE, H264_CLOCK_RATE, H264Packetizer, H264Depacketizer } from './h264-packetizer';
 import { HEVC_PAYLOAD_TYPE, HEVC_CLOCK_RATE, HevcPacketizer, HevcDepacketizer } from './hevc-packetizer';
 import { AV1_PAYLOAD_TYPE, AV1_CLOCK_RATE, Av1Packetizer, Av1Depacketizer } from './av1-packetizer';
-import { OPUS_PAYLOAD_TYPE, OPUS_CLOCK_RATE, OpusPacketizer, OpusDepacketizer } from './packetizer';
+import { OPUS_PAYLOAD_TYPE, OPUS_CLOCK_RATE, OpusPacketizer, OpusDepacketizer } from './opus-packetizer';
 import { PCMU_PAYLOAD_TYPE, PCMA_PAYLOAD_TYPE, G711_CLOCK_RATE, G711Packetizer, G711Depacketizer } from './g711-packetizer';
 import { AAC_PAYLOAD_TYPE, AAC_CLOCK_RATE, AacPacketizer, AacDepacketizer } from './aac-packetizer';
 

@@ -45,6 +45,8 @@ export interface ParsedMediaSection {
   ssrcs: number[];
   codecs: ParsedCodec[];
   headerExtensions: Array<{ id: number; uri: string }>;
+  /** Non-standard shim FEC payload type (from `a=x-shim-fec:<pt>`), if present. */
+  fecPayloadType?: number;
 }
 
 export interface FullParsedSdp {
@@ -150,6 +152,9 @@ export function parseFullSdp(sdp: string): FullParsedSdp {
           uri: match[2],
         });
       }
+    } else if (line.startsWith('a=x-shim-fec:') && currentSection) {
+      const pt = parseInt(line.substring('a=x-shim-fec:'.length), 10);
+      if (!Number.isNaN(pt)) currentSection.fecPayloadType = pt;
     } else if (currentSection) {
       // Direction attributes
       if (line === 'a=sendrecv' || line === 'a=sendonly' ||

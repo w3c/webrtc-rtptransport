@@ -15,6 +15,45 @@ const STATIC_ROOT = existsSync(join(__dirname, 'index.html')) ? __dirname : dirn
 
 const PORT = parseInt(process.env.PORT || '8080', 10);
 
+// Verbose mode: log every relayed signaling message (offer/answer/candidate)
+// and connection lifecycle. Enable with `--verbose`/`-v` or VERBOSE=1.
+const VERBOSE =
+  process.argv.includes('--verbose') ||
+  process.argv.includes('-v') ||
+  process.env.VERBOSE === '1' ||
+  process.env.VERBOSE === 'true';
+
+function ts(): string {
+  return new Date().toISOString();
+}
+function log(msg: string): void {
+  console.log(`[${ts()}] ${msg}`);
+}
+function vlog(msg: string): void {
+  if (VERBOSE) console.log(`[${ts()}] [verbose] ${msg}`);
+}
+
+/** One-line human summary of a signaling message for verbose logging. */
+function describeMessage(msg: SignalingMessage): string {
+  const to = msg.target ? `→ ${msg.target}` : '→ (broadcast)';
+  switch (msg.type) {
+    case 'offer':
+    case 'answer':
+      return `${msg.type} ${to} (sdp: ${(msg.sdp ?? '').length} bytes)`;
+    case 'ice-candidate': {
+      const c = msg.candidate as { candidate?: string } | string | undefined;
+      const cand = typeof c === 'string' ? c : c?.candidate ?? JSON.stringify(c);
+      return `ice-candidate ${to} ${cand}`;
+    }
+    case 'join':
+      return `join room "${msg.room}" as ${msg.peerId ?? '(auto)'}`;
+    case 'leave':
+      return 'leave';
+    default:
+      return `${msg.type} ${JSON.stringify(msg)}`;
+  }
+}
+
 interface SignalingMessage {
   type: string;
   room?: string;
@@ -28,7 +67,9 @@ interface SignalingMessage {
 
 // Simple HTTP server for static files
 const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
-  let filePath = join(STATIC_ROOT, req.url === '/' ? 'index.html' : req.url!);
+  // Strip query string / fragment before resolving the static file path.
+  const rawUrl = (req.url ?? '/').split(/[?#]/)[0];
+  let filePath = join(STATIC_ROOT, rawUrl === '/' ? 'index.html' : rawUrl);
 
   if (!existsSync(filePath)) {
     res.writeHead(404);
@@ -61,13 +102,18 @@ wss.on('connection', (ws: WebSocket) => {
   let currentRoom: string | null = null;
   let peerId: string | null = null;
 
+  vlog('WebSocket connection opened');
+
   ws.on('message', (data: Buffer | string) => {
     let msg: SignalingMessage;
     try {
       msg = JSON.parse(data.toString());
     } catch {
+      vlog('Dropped non-JSON message');
       return;
     }
+
+    vlog(`recv ${describeMessage(msg)}` + (peerId ? ` [from ${peerId}]` : ''));
 
     switch (msg.type) {
       case 'join': {
@@ -76,15 +122,18 @@ wss.on('connection', (ws: WebSocket) => {
 
         if (!rooms.has(currentRoom)) {
           rooms.set(currentRoom, new Map());
+          vlog(`Room "${currentRoom}" created`);
         }
         const room = rooms.get(currentRoom)!;
 
         if (room.size >= 2) {
           ws.send(JSON.stringify({ type: 'error', message: 'Room is full' }));
+          log(`Join rejected: room "${currentRoom}" is full (peer ${peerId})`);
           return;
         }
 
         room.set(peerId, ws);
+        log(`User joined: ${peerId} → room "${currentRoom}" (${room.size}/2)`);
         ws.send(JSON.stringify({
           type: 'joined',
           peerId,
@@ -109,12 +158,16 @@ wss.on('connection', (ws: WebSocket) => {
         const target = msg.target;
         if (target && room.has(target)) {
           room.get(target)!.send(JSON.stringify({ ...msg, from: peerId }));
+          vlog(`relay ${describeMessage(msg)} [from ${peerId}]`);
         } else {
+          let relayed = 0;
           for (const [id, peer] of room) {
             if (id !== peerId) {
               peer.send(JSON.stringify({ ...msg, from: peerId }));
+              relayed++;
             }
           }
+          vlog(`relay ${describeMessage(msg)} [from ${peerId}, ${relayed} recipient(s)]`);
         }
         break;
       }
@@ -135,17 +188,21 @@ wss.on('connection', (ws: WebSocket) => {
         peer.send(JSON.stringify({ type: 'peer-left', peerId }));
       }
 
+      log(`User gone: ${peerId} ← room "${currentRoom}" (${room.size}/2 remaining)`);
+
       if (room.size === 0) {
         rooms.delete(currentRoom);
+        vlog(`Room "${currentRoom}" deleted (empty)`);
       }
     }
     currentRoom = null;
   }
 
-  ws.on('close', leaveRoom);
+  ws.on('close', () => { vlog('WebSocket connection closed'); leaveRoom(); });
   ws.on('error', leaveRoom);
 });
 
 httpServer.listen(PORT, () => {
   console.log(`Signaling server running on http://localhost:${PORT}`);
+  console.log(`Verbose logging: ${VERBOSE ? 'ON' : 'OFF (enable with --verbose)'}`);
 });

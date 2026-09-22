@@ -244,6 +244,15 @@ declare class MediaStreamTrackProcessor {
   readable: ReadableStream<VideoFrame | AudioData>;
 }
 
+// ─── MediaStreamTrackGenerator (Insertable Streams) ─────────────────────────
+// Unflagged in this build (Exposed=Window). Accepts VideoFrame or AudioData
+// written to `writable`; the instance itself is a MediaStreamTrack.
+
+declare class MediaStreamTrackGenerator extends MediaStreamTrack {
+  constructor(init: { kind: string });
+  readonly writable: WritableStream<VideoFrame | AudioData>;
+}
+
 // ─── WebCodecs extensions not in standard lib ───────────────────────────────
 
 interface AudioEncoderConfig {
