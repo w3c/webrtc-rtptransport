@@ -223,10 +223,9 @@ RTCPeerConnection.generateCertificate({
 
 A custom audio codec uses WebNN.  It expects the following to be provided:
 
-- createRtcTransport(): create an RTCTransport and networkRoute like in Example 1a.
-- createAudioEncoder(mlContext, options): load the model
-- captureMic(audioStream, options): capture microphone frames, probably using WebAudio's AudioWorklet.
-- AudioEncoder.encode(): encode PCM to bytes
+- createRtcTransport(): set up and encrypt a transport and return it with its networkRoute, as in Example 1a.
+- createAudioEncoder(mlContext): load the custom codec model
+- captureMic(audioStream): capture microphone frames, probably using Web Audio's AudioWorklet.
 
 
 ```javascript
@@ -239,7 +238,7 @@ async function sendCustomAudio() {
         audioStream = await navigator.mediaDevices.getUserMedia({audio: true});
 
         let packetId = 1;
-        for await (const frame of captureMic(audioStream, options)) {
+        for await (const frame of captureMic(audioStream)) {
             const encoded = await encoder.encode(frame.samples);
             const packet = new ArrayBuffer(8 + encoded.byteLength);
 
@@ -249,7 +248,7 @@ async function sendCustomAudio() {
             new Uint8Array(packet, 8).set(encoded);
 
             transport.sendPackets(
-                [{id: packetId++, data: packet, sendTime: performance.now()}],
+                [{id: packetId++, data: packet}],
                 networkRoute,
             );
         }
