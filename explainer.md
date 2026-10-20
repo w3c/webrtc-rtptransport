@@ -224,7 +224,7 @@ RTCPeerConnection.generateCertificate({
 A custom audio codec uses WebNN.  It expects the following to be provided:
 
 - createRtcTransport(): set up and encrypt a transport and return it with its networkRoute, as in Example 1a.
-- createAudioEncoder(mlContext): load the custom codec model
+- createAudioEncoder(mlContext): load the custom codec model; awaiting encoder.encode(samples) yields a Uint8Array containing the encoded bytes.
 - captureMic(audioStream): capture microphone frames, probably using Web Audio's AudioWorklet.
 
 
