@@ -195,9 +195,20 @@ dictionary RtcPacketToSend {
 };
 
 dictionary RtcPacketSentInfo {
+  RtcPacketSendStatus status;
   long long id;
   long long packetSizeBytes;
   DOMHighResTimeStamp sendTime;
+};
+
+// Local outcome of a packet send request.
+enum RtcPacketSendStatus {
+  // The local transport reported the packet sent, not received or acknowledged.
+  "ok",
+  // A local send was rejected or failed by the transport.
+  "send-failed",
+  // Packet sending is blocked by the circuit breaker.
+  "circuit-breaker-active",
 };
 
 enum RtcEcnMarking {
