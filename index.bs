@@ -829,6 +829,7 @@ dictionary RtcPacketToSend {
 ## RtcPacketSentInfo ## {#rtcpacketsentinfo}
 <pre class="idl">
 dictionary RtcPacketSentInfo {
+  RtcPacketSendStatus status;
   long long id;
   long long packetSizeBytes;
   DOMHighResTimeStamp sendTime;
@@ -842,6 +843,28 @@ dictionary RtcPacketSentInfo {
 
 : <dfn for="RtcPacketSentInfo" dict-member>sendTime</dfn>
 :: The actual timestamp that the packet was put on the wire.
+
+: <dfn for="RtcPacketSentInfo" dict-member>status</dfn>
+:: The local outcome of the request to send the packet.
+
+## RtcPacketSendStatus ## {#rtcpacketsendstatus}
+<pre class="idl">
+enum RtcPacketSendStatus {
+  "ok",
+  "send-failed",
+  "circuit-breaker-active"
+};
+</pre>
+The {{RtcPacketSendStatus}} enum describes the local outcome of a request to send a packet.
+
+: <dfn for="RtcPacketSendStatus" enum-value>"ok"</dfn>
+:: The local transport reported the packet as sent. This does not indicate that the packet was received or acknowledged by the remote peer.
+
+: <dfn for="RtcPacketSendStatus" enum-value>"send-failed"</dfn>
+:: The local send was rejected or failed by the transport.
+
+: <dfn for="RtcPacketSendStatus" enum-value>"circuit-breaker-active"</dfn>
+:: Sending the packet was blocked by the [=Circuit Breaker=].
 
 ## RtcEcnMarking ## {#rtc-ecn-marking}
 <pre class="idl">
